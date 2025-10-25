@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多AI角色群聊</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            max-width: 1800px;
+            margin: 0 auto;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .sidebar-right {
+            width: 300px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .list-container {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .item {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .item:hover {
+            background: #e8e8e8;
+        }
+
+        .item.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .item-desc {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .message-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .message-text {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            color: #333;
+            line-height: 1.5;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-text {
+            background: #667eea;
+            color: white;
+        }
+
+        .chat-input {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .typing-indicator {
+            display: inline-block;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .agent-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        .agent-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .checkbox-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .checkbox-item {
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input {
+            width: auto;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>群聊列表</h2>
+            <div class="list-container" id="groupList"></div>
+            <button class="btn btn-primary" onclick="openGroupModal()">创建群聊</button>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-header">
+                <div>
+                    <h2 id="currentGroupName">选择一个群聊开始对话</h2>
+                    <div id="groupAgents" style="font-size: 12px; color: #666; margin-top: 4px;"></div>
+                </div>
+                <div>
+                    <button class="btn btn-secondary" onclick="editCurrentGroup()" id="editGroupBtn" disabled>编辑群聊</button>
+                    <button class="btn btn-secondary" onclick="clearChat()" id="clearChatBtn" disabled>清空对话</button>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="empty-state">
+                    <p>👈 从左侧选择或创建一个群聊</p>
+                </div>
+            </div>
+            <div class="chat-input">
+                <textarea id="userInput" placeholder="输入消息... (Shift+Enter换行, Enter发送)" rows="2" disabled></textarea>
+                <button class="btn btn-success" onclick="sendMessage()" id="sendBtn" disabled>发送</button>
+            </div>
+        </div>
+
+        <div class="sidebar-right">
+            <h2>AI 角色</h2>
+            <div class="list-container" id="agentList"></div>
+            <button class="btn btn-primary" onclick="openAgentModal()">创建角色</button>
+        </div>
+    </div>
+
+    <!-- 角色模态框 -->
+    <div class="modal" id="agentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="agentModalTitle">创建角色</h3>
+            </div>
+            <form id="agentForm">
+                <div class="form-group">
+                    <label>角色名称 *</label>
+                    <input type="text" id="agentName" required>
+                </div>
+                <div class="form-group">
+                    <label>角色定位</label>
+                    <input type="text" id="agentRole" placeholder="例如：助手、专家、顾问">
+                </div>
+                <div class="form-group">
+                    <label>系统提示词 *</label>
+                    <textarea id="agentPrompt" required placeholder="描述这个角色的性格、专长和行为方式"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>头像颜色</label>
+                    <input type="color" id="agentColor" value="#667eea">
+                </div>
+                
+                <div class="section-divider"></div>
+                <h3>API 配置</h3>
+                
+                <div class="form-group">
+                    <label>Base URL *</label>
+                    <input type="text" id="agentBaseUrl" placeholder="https://api.openai.com/v1" required>
+                </div>
+                <div class="form-group">
+                    <label>API Key *</label>
+                    <input type="password" id="agentApiKey" required>
+                </div>
+                <div class="form-group">
+                    <label>模型</label>
+                    <input type="text" id="agentModel" value="gpt-3.5-turbo" placeholder="gpt-3.5-turbo">
+                </div>
+                <div class="form-group">
+                    <label>Temperature (0-2)</label>
+                    <input type="number" id="agentTemperature" min="0" max="2" step="0.1" value="0.7">
+                </div>
+                <div class="form-group">
+                    <label>Max Tokens</label>
+                    <input type="number" id="agentMaxTokens" min="1" max="32000" value="2000">
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAgentModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 群聊模态框 -->
+    <div class="modal" id="groupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="groupModalTitle">创建群聊</h3>
+            </div>
+            <form id="groupForm">
+                <div class="form-group">
+                    <label>群聊名称 *</label>
+                    <input type="text" id="groupName" required>
+                </div>
+                <div class="form-group">
+                    <label>群聊描述</label>
+                    <textarea id="groupDesc" placeholder="描述这个群聊的用途"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>选择角色 *</label>
+                    <div class="checkbox-list" id="agentCheckboxList"></div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="groupAutoReply" checked> 自动回复（角色轮流发言）
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>最大自动回复轮数</label>
+                    <input type="number" id="groupMaxRounds" min="1" max="20" value="5">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeGroupModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let agents = [];
+        let groups = [];
+        let currentGroupId = null;
+        let currentEditingAgent = null;
+        let currentEditingGroup = null;
+
+        function init() {
+            loadData();
+            renderAgents();
+            renderGroups();
+        }
+
+        function loadData() {
+            const savedAgents = localStorage.getItem('agents_v2');
+            const savedGroups = localStorage.getItem('groups_v2');
+
+            if (savedAgents) agents = JSON.parse(savedAgents);
+            if (savedGroups) groups = JSON.parse(savedGroups);
+        }
+
+        function saveData() {
+            localStorage.setItem('agents_v2', JSON.stringify(agents));
+            localStorage.setItem('groups_v2', JSON.stringify(groups));
+        }
+
+        function renderAgents() {
+            const agentList = document.getElementById('agentList');
+            
+            if (agents.length === 0) {
+                agentList.innerHTML = '<div class="empty-state"><p>还没有角色<br>点击下方创建</p></div>';
+                return;
+            }
+
+            agentList.innerHTML = agents.map((agent, index) => `
+                <div class="item">
+                    <div class="item-name">
+                        <span class="agent-color" style="background: ${agent.color}"></span>
+                        ${agent.name}
+                    </div>
+                    <div class="item-desc">${agent.role || '未设置角色'}</div>
+                    <div class="item-desc" style="font-size: 11px;">模型: ${agent.model || 'gpt-3.5-turbo'}</div>
+                    <div class="item-actions">
+                        <button class="btn btn-secondary" onclick="editAgent(${index})">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteAgent(${index})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderGroups() {
+            const groupList = document.getElementById('groupList');
+            
+            if (groups.length === 0) {
+                groupList.innerHTML = '<div class="empty-state"><p>还没有群聊<br>点击下方创建</p></div>';
+                return;
+            }
+
+            groupList.innerHTML = groups.map((group, index) => {
+                const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+                return `
+                    <div class="item ${currentGroupId === group.id ? 'active' : ''}" onclick="selectGroup('${group.id}')">
+                        <div class="item-name">${group.name}</div>
+                        <div class="item-desc">${group.desc || '无描述'}</div>
+                        <div class="item-desc">${groupAgents.length} 个角色</div>
+                        <div class="item-actions">
+                            <button class="btn btn-secondary" onclick="event.stopPropagation(); editGroup(${index})">编辑</button>
+                            <button class="btn btn-danger" onclick="event.stopPropagation(); deleteGroup(${index})">删除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderMessages() {
+            const chatMessages = document.getElementById('chatMessages');
+            const group = groups.find(g => g.id === currentGroupId);
+            
+            if (!group || !group.messages || group.messages.length === 0) {
+                chatMessages.innerHTML = '<div class="empty-state"><p>还没有消息<br>开始对话吧！</p></div>';
+                return;
+            }
+
+            chatMessages.innerHTML = group.messages.map(msg => {
+                const isUser = msg.role === 'user';
+                const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
+                const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
+                const name = isUser ? '用户' : (agent ? agent.name : '未知');
+                
+                return `
+                    <div class="message ${isUser ? 'user' : ''}">
+                        <div class="message-avatar" style="background: ${color}">
+                            ${name.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-name">${name}</span>
+                                <span class="message-time">${formatTime(msg.timestamp)}</span>
+                            </div>
+                            <div class="message-text">${escapeHtml(msg.content)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function selectGroup(groupId) {
+            currentGroupId = groupId;
+            const group = groups.find(g => g.id === groupId);
+            
+            if (!group) return;
+
+            const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+            
+            document.getElementById('currentGroupName').textContent = group.name;
+            document.getElementById('groupAgents').textContent = `参与角色: ${groupAgents.map(a => a.name).join(', ')}`;
+            document.getElementById('userInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('editGroupBtn').disabled = false;
+            document.getElementById('clearChatBtn').disabled = false;
+            
+            renderGroups();
+            renderMessages();
+        }
+
+        function openAgentModal() {
+            currentEditingAgent = null;
+            document.getElementById('agentModalTitle').textContent = '创建角色';
+            document.getElementById('agentForm').reset();
+            document.getElementById('agentColor').value = generateRandomColor();
+            document.getElementById('agentBaseUrl').value = 'https://api.openai.com/v1';
+            document.getElementById('agentModel').value = 'gpt-3.5-turbo';
+            document.getElementById('agentTemperature').value = '0.7';
+            document.getElementById('agentMaxTokens').value = '2000';
+            document.getElementById('agentModal').classList.add('active');
+        }
+
+        function closeAgentModal() {
+            document.getElementById('agentModal').classList.remove('active');
+        }
+
+        function editAgent(index) {
+            currentEditingAgent = index;
+            const agent = agents[index];
+            document.getElementById('agentModalTitle').textContent = '编辑角色';
+            document.getElementById('agentName').value = agent.name;
+            document.getElementById('agentRole').value = agent.role || '';
+            document.getElementById('agentPrompt').value = agent.prompt;
+            document.getElementById('agentColor').value = agent.color;
+            document.getElementById('agentBaseUrl').value = agent.baseUrl;
+            document.getElementById('agentApiKey').value = agent.apiKey;
+            document.getElementById('agentModel').value = agent.model;
+            document.getElementById('agentTemperature').value = agent.temperature;
+            document.getElementById('agentMaxTokens').value = agent.maxTokens;
+            document.getElementById('agentModal').classList.add('active');
+        }
+
+        function saveAgent() {
+            const agent = {
+                id: currentEditingAgent !== null ? agents[currentEditingAgent].id : generateId(),
+                name: document.getElementById('agentName').value,
+                role: document.getElementById('agentRole').value,
+                prompt: document.getElementById('agentPrompt').value,
+                color: document.getElementById('agentColor').value,
+                baseUrl: document.getElementById('agentBaseUrl').value,
+                apiKey: document.getElementById('agentApiKey').value,
+                model: document.getElementById('agentModel').value,
+                temperature: parseFloat(document.getElementById('agentTemperature').value),
+                maxTokens: parseInt(document.getElementById('agentMaxTokens').value)
+            };
+
+            if (currentEditingAgent !== null) {
+                agents[currentEditingAgent] = agent;
+            } else {
+                agents.push(agent);
+            }
+
+            saveData();
+            renderAgents();
+            renderGroups();
+            if (currentGroupId) renderMessages();
+            closeAgentModal();
+        }
+
+        function deleteAgent(index) {
+            if (confirm('确定要删除这个角色吗？关联的群聊可能会受影响。')) {
+                const agentId = agents[index].id;
+                agents.splice(index, 1);
+                
+                groups.forEach(group => {
+                    group.agentIds = group.agentIds.filter(id => id !== agentId);
+                });
+                
+                saveData();
+                renderAgents();
+                renderGroups();
+                if (currentGroupId) renderMessages();
+            }
+        }
+
+        function openGroupModal() {
+            if (agents.length === 0) {
+                alert('请先创建至少一个角色');
+                return;
+            }
+
+            currentEditingGroup = null;
+            document.getElementById('groupModalTitle').textContent = '创建群聊';
+            document.getElementById('groupForm').reset();
+            document.getElementById('groupAutoReply').checked = true;
+            document.getElementById('groupMaxRounds').value = '5';
+            renderAgentCheckboxes();
+            document.getElementById('groupModal').classList.add('active');
+        }
+
+        function closeGroupModal() {
+            document.getElementById('groupModal').classList.remove('active');
+        }
+
+        function editCurrentGroup() {
+            if (!currentGroupId) return;
+            const index = groups.findIndex(g => g.id === currentGroupId);
+            if (index !== -1) editGroup(index);
+        }
+
+        function editGroup(index) {
+            currentEditingGroup = index;
+            const group = groups[index];
+            document.getElementById('groupModalTitle').textContent = '编辑群聊';
+            document.getElementById('groupName').value = group.name;
+            document.getElementById('groupDesc').value = group.desc || '';
+            document.getElementById('groupAutoReply').checked = group.autoReply;
+            document.getElementById('groupMaxRounds').value = group.maxRounds;
+            renderAgentCheckboxes(group.agentIds);
+            document.getElementById('groupModal').classList.add('active');
+        }
+
+        function renderAgentCheckboxes(selectedIds = []) {
+            const container = document.getElementById('agentCheckboxList');
+            container.innerHTML = agents.map(agent => `
+                <div class="checkbox-item">
+                    <input type="checkbox" id="agent_${agent.id}" value="${agent.id}" 
+                        ${selectedIds.includes(agent.id) ? 'checked' : ''}>
+                    <label for="agent_${agent.id}">
+                        <span class="agent-color" style="background: ${agent.color}"></span>
+                        ${agent.name}
+                    </label>
+                </div>
+            `).join('');
+        }
+
+        function saveGroup() {
+            const selectedAgentIds = Array.from(document.querySelectorAll('#agentCheckboxList input:checked'))
+                .map(input => input.value);
+
+            if (selectedAgentIds.length === 0) {
+                alert('请至少选择一个角色');
+                return;
+            }
+
+            const group = {
+                id: currentEditingGroup !== null ? groups[currentEditingGroup].id : generateId(),
+                name: document.getElementById('groupName').value,
+                desc: document.getElementById('groupDesc').value,
+                agentIds: selectedAgentIds,
+                autoReply: document.getElementById('groupAutoReply').checked,
+                maxRounds: parseInt(document.getElementById('groupMaxRounds').value),
+                messages: currentEditingGroup !== null ? groups[currentEditingGroup].messages : []
+            };
+
+            if (currentEditingGroup !== null) {
+                groups[currentEditingGroup] = group;
+            } else {
+                groups.push(group);
+            }
+
+            saveData();
+            renderGroups();
+            if (currentGroupId === group.id) selectGroup(group.id);
+            closeGroupModal();
+        }
+
+        function deleteGroup(index) {
+            if (confirm('确定要删除这个群聊吗？所有对话记录将被删除。')) {
+                const groupId = groups[index].id;
+                groups.splice(index, 1);
+                
+                if (currentGroupId === groupId) {
+                    currentGroupId = null;
+                    document.getElementById('currentGroupName').textContent = '选择一个群聊开始对话';
+                    document.getElementById('groupAgents').textContent = '';
+                    document.getElementById('userInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    document.getElementById('editGroupBtn').disabled = true;
+                    document.getElementById('clearChatBtn').disabled = true;
+                    document.getElementById('chatMessages').innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
+                }
+                
+                saveData();
+                renderGroups();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const content = input.value.trim();
+            
+            if (!content || !currentGroupId) return;
+            
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+
+            const userMessage = {
+                role: 'user',
+                content: content,
+                timestamp: Date.now()
+            };
+
+            if (!group.messages) group.messages = [];
+            group.messages.push(userMessage);
+            input.value = '';
+            saveData();
+            renderMessages();
+
+            if (group.autoReply) {
+                await startGroupChat(group);
+            } else {
+                const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+                if (groupAgents.length > 0) {
+                    await getAgentResponse(group, groupAgents[0]);
+                }
+            }
+        }
+
+        async function startGroupChat(group) {
+            let rounds = 0;
+            const maxRounds = group.maxRounds;
+            const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+
+            while (rounds < maxRounds && groupAgents.length > 0) {
+                const agentIndex = rounds % groupAgents.length;
+                const agent = groupAgents[agentIndex];
+                
+                await getAgentResponse(group, agent);
+                rounds++;
+
+                if (rounds < maxRounds) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+        }
+
+        async function getAgentResponse(group, agent) {
+            showTypingIndicator(agent);
+
+            try {
+                const conversationHistory = group.messages.map(msg => {
+                    if (msg.role === 'user') {
+                        return { role: 'user', content: `[用户]: ${msg.content}` };
+                    } else {
+                        const msgAgent = agents.find(a => a.id === msg.agentId);
+                        return { 
+                            role: 'assistant', 
+                            content: `[${msgAgent ? msgAgent.name : '未知'}]: ${msg.content}` 
+                        };
+                    }
+                });
+
+                const otherAgents = group.agentIds
+                    .map(id => agents.find(a => a.id === id))
+                    .filter(a => a && a.id !== agent.id)
+                    .map(a => a.name)
+                    .join(', ');
+
+                conversationHistory.unshift({
+                    role: 'system',
+                    content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${otherAgents}。请以 ${agent.name} 的身份自然地回复对话。`
+                });
+
+                const response = await fetch(`${agent.baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${agent.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: agent.model,
+                        messages: conversationHistory,
+                        temperature: agent.temperature,
+                        max_tokens: agent.maxTokens
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API 错误: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+
+                const data = await response.json();
+                const assistantMessage = {
+                    role: 'assistant',
+                    agentId: agent.id,
+                    content: data.choices[0].message.content,
+                    timestamp: Date.now()
+                };
+
+                removeTypingIndicator();
+                group.messages.push(assistantMessage);
+                saveData();
+                renderMessages();
+
+            } catch (error) {
+                removeTypingIndicator();
+                console.error('Error:', error);
+                alert(`角色 ${agent.name} 响应失败: ${error.message}`);
+            }
+        }
+
+        function showTypingIndicator(agent) {
+            const chatMessages = document.getElementById('chatMessages');
+            const indicator = document.createElement('div');
+            indicator.className = 'message';
+            indicator.id = 'typingIndicator';
+            indicator.innerHTML = `
+                <div class="message-avatar" style="background: ${agent.color}">
+                    ${agent.name.charAt(0).toUpperCase()}
+                </div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-name">${agent.name}</span>
+                    </div>
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(indicator);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function clearChat() {
+            if (!currentGroupId) return;
+            
+            if (confirm('确定要清空当前群聊的所有对话吗？')) {
+                const group = groups.find(g => g.id === currentGroupId);
+                if (group) {
+                    group.messages = [];
+                    saveData();
+                    renderMessages();
+                }
+            }
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function generateRandomColor() {
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#30cfd0', '#a8edea', '#ff6b6b', '#4ecdc4'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        document.getElementById('userInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        document.getElementById('agentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveAgent();
+        });
+
+        document.getElementById('groupForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveGroup();
+        });
+
+        init();
+    </script>
+</body>
+</html>
