@@ -668,7 +668,7 @@
             models: []
         };
 
-        let openaiClient = null;
+        let openaiClients = {};
 
         function init() {
             loadData();
@@ -699,7 +699,8 @@
             if (!globalSettings.apiKey) return;
             
             try {
-                openaiClient = new OpenAI({
+                const key = `global_${globalSettings.apiKey.slice(0, 10)}`;
+                openaiClients[key] = new OpenAI({
                     apiKey: globalSettings.apiKey,
                     baseURL: globalSettings.baseUrl,
                     dangerouslyAllowBrowser: true
@@ -707,6 +708,18 @@
             } catch (e) {
                 console.error('OpenAI 初始化失败:', e);
             }
+        }
+
+        function getOpenAIClient(config) {
+            const key = `${config.apiKey.slice(0, 10)}_${config.baseUrl}`;
+            if (!openaiClients[key]) {
+                openaiClients[key] = new OpenAI({
+                    apiKey: config.apiKey,
+                    baseURL: config.baseUrl,
+                    dangerouslyAllowBrowser: true
+                });
+            }
+            return openaiClients[key];
         }
 
         async function loadModels() {
@@ -720,19 +733,12 @@
                 btn.disabled = true;
                 btn.innerHTML = '<div class="loading-spinner"></div>';
 
-                const response = await fetch(`${globalSettings.baseUrl}/models`, {
-                    headers: {
-                        'Authorization': `Bearer ${globalSettings.apiKey}`
-                    }
-                });
+                const client = getOpenAIClient(globalSettings);
+                const response = await client.models.list();
 
-                if (!response.ok) {
-                    throw new Error(`API 错误: ${response.status}`);
-                }
-
-                const data = await response.json();
-                // 按id首字母排序
-                const models = data.data.sort((a, b) => a.id.localeCompare(b.id)).map(m => m.id);
+                const models = response.data
+                    .map(m => m.id)
+                    .sort((a, b) => a.localeCompare(b));
                 
                 globalSettings.models = models;
                 saveData();
@@ -1220,30 +1226,18 @@
                     content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。请以 ${agent.name} 的身份自然地回复对话。`
                 });
 
-                const response = await fetch(`${config.baseUrl}/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${config.apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: config.model,
-                        messages: conversationHistory,
-                        temperature: config.temperature || 0.7,
-                        max_tokens: config.maxTokens || 2000
-                    })
+                const client = getOpenAIClient(config);
+                const response = await client.chat.completions.create({
+                    model: config.model,
+                    messages: conversationHistory,
+                    temperature: config.temperature || 0.7,
+                    max_tokens: config.maxTokens || 2000
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`API 错误: ${response.status}\n${errorText}`);
-                }
-
-                const data = await response.json();
                 const assistantMessage = {
                     role: 'assistant',
                     agentId: agent.id,
-                    content: data.choices[0].message.content,
+                    content: response.choices[0].message.content,
                     timestamp: Date.now()
                 };
 
