@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多AI角色群聊</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            max-width: 1600px;
+            margin: 0 auto;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .agent-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .agent-item {
+            background: #f5f5f5;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .agent-item:hover {
+            background: #e8e8e8;
+        }
+
+        .agent-item.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .agent-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .agent-role {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .agent-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .message-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .message-text {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            color: #333;
+            line-height: 1.5;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-text {
+            background: #667eea;
+            color: white;
+        }
+
+        .chat-input {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .settings-section {
+            margin-bottom: 20px;
+        }
+
+        .settings-toggle {
+            cursor: pointer;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .settings-content {
+            display: none;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .settings-content.active {
+            display: block;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .typing-indicator {
+            display: inline-block;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .agent-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>AI 角色</h2>
+            <div class="agent-list" id="agentList"></div>
+            <button class="btn btn-primary" onclick="openAgentModal()">添加角色</button>
+            <button class="btn btn-secondary" onclick="openSettingsModal()" style="margin-top: 10px;">配置</button>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-header">
+                <h2>群聊对话</h2>
+                <div>
+                    <button class="btn btn-secondary" onclick="clearChat()">清空对话</button>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">
+                <textarea id="userInput" placeholder="输入消息... (Shift+Enter换行, Enter发送)" rows="2"></textarea>
+                <button class="btn btn-success" onclick="sendMessage()">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="agentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="agentModalTitle">添加角色</h3>
+            </div>
+            <form id="agentForm">
+                <div class="form-group">
+                    <label>角色名称 *</label>
+                    <input type="text" id="agentName" required>
+                </div>
+                <div class="form-group">
+                    <label>角色定位</label>
+                    <input type="text" id="agentRole" placeholder="例如：助手、专家、顾问">
+                </div>
+                <div class="form-group">
+                    <label>系统提示词 *</label>
+                    <textarea id="agentPrompt" required placeholder="描述这个角色的性格、专长和行为方式"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>头像颜色</label>
+                    <input type="color" id="agentColor" value="#667eea">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAgentModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>API 配置</h3>
+            </div>
+            <form id="settingsForm">
+                <div class="form-group">
+                    <label>Base URL *</label>
+                    <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" required>
+                </div>
+                <div class="form-group">
+                    <label>API Key *</label>
+                    <input type="password" id="apiKey" required>
+                </div>
+                <div class="form-group">
+                    <label>模型</label>
+                    <input type="text" id="model" value="gpt-3.5-turbo" placeholder="gpt-3.5-turbo">
+                </div>
+                <div class="form-group">
+                    <label>Temperature (0-2)</label>
+                    <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7">
+                </div>
+                <div class="form-group">
+                    <label>Max Tokens</label>
+                    <input type="number" id="maxTokens" min="1" max="32000" value="2000">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="autoReply"> 自动回复（角色轮流发言）
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>最大自动回复轮数</label>
+                    <input type="number" id="maxRounds" min="1" max="20" value="5">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let agents = [];
+        let messages = [];
+        let currentEditingAgent = null;
+        let settings = {
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: '',
+            model: 'gpt-3.5-turbo',
+            temperature: 0.7,
+            maxTokens: 2000,
+            autoReply: true,
+            maxRounds: 5
+        };
+
+        function init() {
+            loadData();
+            renderAgents();
+            renderMessages();
+            setupEventListeners();
+        }
+
+        function loadData() {
+            const savedAgents = localStorage.getItem('agents');
+            const savedMessages = localStorage.getItem('messages');
+            const savedSettings = localStorage.getItem('settings');
+
+            if (savedAgents) agents = JSON.parse(savedAgents);
+            if (savedMessages) messages = JSON.parse(savedMessages);
+            if (savedSettings) settings = JSON.parse(savedSettings);
+        }
+
+        function saveData() {
+            localStorage.setItem('agents', JSON.stringify(agents));
+            localStorage.setItem('messages', JSON.stringify(messages));
+            localStorage.setItem('settings', JSON.stringify(settings));
+        }
+
+        function setupEventListeners() {
+            document.getElementById('userInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            document.getElementById('agentForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveAgent();
+            });
+
+            document.getElementById('settingsForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveSettings();
+            });
+        }
+
+        function renderAgents() {
+            const agentList = document.getElementById('agentList');
+            agentList.innerHTML = agents.map((agent, index) => `
+                <div class="agent-item">
+                    <div class="agent-name">
+                        <span class="agent-color" style="background: ${agent.color}"></span>
+                        ${agent.name}
+                    </div>
+                    <div class="agent-role">${agent.role || '未设置角色'}</div>
+                    <div class="agent-actions">
+                        <button class="btn btn-secondary" onclick="editAgent(${index})">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteAgent(${index})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderMessages() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = messages.map(msg => {
+                const isUser = msg.role === 'user';
+                const agent = isUser ? null : agents.find(a => a.name === msg.name);
+                const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
+                
+                return `
+                    <div class="message ${isUser ? 'user' : ''}">
+                        <div class="message-avatar" style="background: ${color}">
+                            ${msg.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-name">${msg.name}</span>
+                                <span class="message-time">${formatTime(msg.timestamp)}</span>
+                            </div>
+                            <div class="message-text">${escapeHtml(msg.content)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function openAgentModal() {
+            currentEditingAgent = null;
+            document.getElementById('agentModalTitle').textContent = '添加角色';
+            document.getElementById('agentForm').reset();
+            document.getElementById('agentColor').value = generateRandomColor();
+            document.getElementById('agentModal').classList.add('active');
+        }
+
+        function closeAgentModal() {
+            document.getElementById('agentModal').classList.remove('active');
+        }
+
+        function editAgent(index) {
+            currentEditingAgent = index;
+            const agent = agents[index];
+            document.getElementById('agentModalTitle').textContent = '编辑角色';
+            document.getElementById('agentName').value = agent.name;
+            document.getElementById('agentRole').value = agent.role || '';
+            document.getElementById('agentPrompt').value = agent.prompt;
+            document.getElementById('agentColor').value = agent.color;
+            document.getElementById('agentModal').classList.add('active');
+        }
+
+        function saveAgent() {
+            const agent = {
+                name: document.getElementById('agentName').value,
+                role: document.getElementById('agentRole').value,
+                prompt: document.getElementById('agentPrompt').value,
+                color: document.getElementById('agentColor').value
+            };
+
+            if (currentEditingAgent !== null) {
+                agents[currentEditingAgent] = agent;
+            } else {
+                agents.push(agent);
+            }
+
+            saveData();
+            renderAgents();
+            closeAgentModal();
+        }
+
+        function deleteAgent(index) {
+            if (confirm('确定要删除这个角色吗？')) {
+                agents.splice(index, 1);
+                saveData();
+                renderAgents();
+            }
+        }
+
+        function openSettingsModal() {
+            document.getElementById('baseUrl').value = settings.baseUrl;
+            document.getElementById('apiKey').value = settings.apiKey;
+            document.getElementById('model').value = settings.model;
+            document.getElementById('temperature').value = settings.temperature;
+            document.getElementById('maxTokens').value = settings.maxTokens;
+            document.getElementById('autoReply').checked = settings.autoReply;
+            document.getElementById('maxRounds').value = settings.maxRounds;
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function saveSettings() {
+            settings = {
+                baseUrl: document.getElementById('baseUrl').value,
+                apiKey: document.getElementById('apiKey').value,
+                model: document.getElementById('model').value,
+                temperature: parseFloat(document.getElementById('temperature').value),
+                maxTokens: parseInt(document.getElementById('maxTokens').value),
+                autoReply: document.getElementById('autoReply').checked,
+                maxRounds: parseInt(document.getElementById('maxRounds').value)
+            };
+            saveData();
+            closeSettingsModal();
+            alert('配置已保存');
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const content = input.value.trim();
+            
+            if (!content) return;
+            
+            if (!settings.apiKey) {
+                alert('请先配置 API Key');
+                openSettingsModal();
+                return;
+            }
+
+            if (agents.length === 0) {
+                alert('请先添加至少一个 AI 角色');
+                return;
+            }
+
+            const userMessage = {
+                role: 'user',
+                name: '用户',
+                content: content,
+                timestamp: Date.now()
+            };
+
+            messages.push(userMessage);
+            input.value = '';
+            saveData();
+            renderMessages();
+
+            if (settings.autoReply) {
+                await startGroupChat();
+            } else {
+                await getAgentResponse(agents[0]);
+            }
+        }
+
+        async function startGroupChat() {
+            let rounds = 0;
+            const maxRounds = settings.maxRounds;
+
+            while (rounds < maxRounds && agents.length > 0) {
+                const agentIndex = rounds % agents.length;
+                const agent = agents[agentIndex];
+                
+                await getAgentResponse(agent);
+                rounds++;
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        async function getAgentResponse(agent) {
+            showTypingIndicator(agent);
+
+            try {
+                const conversationHistory = messages.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: `[${msg.name}]: ${msg.content}`
+                }));
+
+                conversationHistory.unshift({
+                    role: 'system',
+                    content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，有多个AI角色参与对话。请以 ${agent.name} 的身份回复。`
+                });
+
+                const response = await fetch(`${settings.baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${settings.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: settings.model,
+                        messages: conversationHistory,
+                        temperature: settings.temperature,
+                        max_tokens: settings.maxTokens
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API 错误: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const assistantMessage = {
+                    role: 'assistant',
+                    name: agent.name,
+                    content: data.choices[0].message.content,
+                    timestamp: Date.now()
+                };
+
+                removeTypingIndicator();
+                messages.push(assistantMessage);
+                saveData();
+                renderMessages();
+
+            } catch (error) {
+                removeTypingIndicator();
+                console.error('Error:', error);
+                alert('发生错误: ' + error.message);
+            }
+        }
+
+        function showTypingIndicator(agent) {
+            const chatMessages = document.getElementById('chatMessages');
+            const indicator = document.createElement('div');
+            indicator.className = 'message';
+            indicator.id = 'typingIndicator';
+            indicator.innerHTML = `
+                <div class="message-avatar" style="background: ${agent.color}">
+                    ${agent.name.charAt(0).toUpperCase()}
+                </div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-name">${agent.name}</span>
+                    </div>
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(indicator);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function clearChat() {
+            if (confirm('确定要清空所有对话吗？')) {
+                messages = [];
+                saveData();
+                renderMessages();
+            }
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function generateRandomColor() {
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#30cfd0', '#a8edea'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        init();
+    </script>
+</body>
+</html>
