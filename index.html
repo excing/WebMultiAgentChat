@@ -787,27 +787,27 @@
                 <div class="user-info">
                     👤 <span id="userNameDisplay">用户</span>
                 </div>
-                <button class="btn btn-secondary" onclick="openUserSettingsModal()">设置</button>
+                <button class="btn btn-secondary" id="userSettingsBtn">设置</button>
             </div>
 
             <h2>群聊列表</h2>
             <div class="list-container" id="groupList"></div>
-            <button class="btn btn-primary" onclick="openGroupModal()">创建群聊</button>
+            <button class="btn btn-primary" id="createGroupBtn">创建群聊</button>
         </div>
 
         <div class="main-content">
             <div class="chat-header">
                 <div class="header-toggle-group">
-                    <button class="sidebar-toggle" id="toggleSidebarBtn" onclick="toggleSidebar()">☰</button>
+                    <button class="sidebar-toggle" id="toggleSidebarBtn">☰</button>
                     <div style="flex: 1; min-width: 0;">
                         <h2 id="currentGroupName">选择一个群聊开始对话</h2>
                         <div id="groupAgents" style="font-size: 12px; color: #666; margin-top: 4px;"></div>
                     </div>
                 </div>
                 <div>
-                    <button class="btn btn-secondary" onclick="editCurrentGroup()" id="editGroupBtn" disabled>编辑群聊</button>
-                    <button class="btn btn-secondary" onclick="clearChat()" id="clearChatBtn" disabled>清空对话</button>
-                    <button class="sidebar-toggle" id="toggleRightSidebarBtn" onclick="toggleRightSidebar()" style="margin-left: 5px;">⋮</button>
+                    <button class="btn btn-secondary" id="editGroupBtn" disabled>编辑群聊</button>
+                    <button class="btn btn-secondary" id="clearChatBtn" disabled>清空对话</button>
+                    <button class="sidebar-toggle" id="toggleRightSidebarBtn" style="margin-left: 5px;">⋮</button>
                 </div>
             </div>
             <div class="chat-messages" id="chatMessages">
@@ -817,14 +817,14 @@
             </div>
             <div class="chat-input">
                 <textarea id="userInput" placeholder="输入消息... (Shift+Enter换行, Enter发送)" rows="2" disabled></textarea>
-                <button class="btn btn-success" onclick="sendMessage()" id="sendBtn" disabled>发送</button>
+                <button class="btn btn-success" id="sendBtn" disabled>发送</button>
             </div>
         </div>
 
         <div class="sidebar-right">
             <h2>AI 角色</h2>
             <div class="list-container" id="agentList"></div>
-            <button class="btn btn-primary" onclick="openAgentModal()">创建角色</button>
+            <button class="btn btn-primary" id="createAgentBtn">创建角色</button>
         </div>
     </div>
 
@@ -864,12 +864,12 @@
                             <option value="claude-3-sonnet">claude-3-sonnet</option>
                             <option value="claude-3-haiku">claude-3-haiku</option>
                         </select>
-                        <button type="button" class="btn btn-secondary" onclick="loadModels()">刷新</button>
+                        <button type="button" class="btn btn-secondary" id="refreshModelsBtn">刷新</button>
                     </div>
                 </div>
 
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeUserSettingsModal()">取消</button>
+                    <button type="button" class="btn btn-secondary" id="cancelUserSettingsBtn">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
                 </div>
             </form>
@@ -904,7 +904,7 @@
                 <h3>API 配置</h3>
 
                 <div class="config-toggle">
-                    <input type="checkbox" id="agentUseGlobal" checked onchange="toggleAgentConfig()">
+                    <input type="checkbox" id="agentUseGlobal" checked>
                     <label for="agentUseGlobal" style="margin-bottom: 0;">使用全局配置</label>
                 </div>
 
@@ -941,7 +941,7 @@
                 </div>
 
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeAgentModal()">取消</button>
+                    <button type="button" class="btn btn-secondary" id="cancelAgentModalBtn">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
                 </div>
             </form>
@@ -977,7 +977,7 @@
                     <input type="number" id="groupMaxRounds" min="1" max="20" value="5">
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeGroupModal()">取消</button>
+                    <button type="button" class="btn btn-secondary" id="cancelGroupModalBtn">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
                 </div>
             </form>
@@ -985,6 +985,9 @@
     </div>
 
     <script type="module">
+        const qs = (s, r=document) => r.querySelector(s);
+        const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
+
         let OpenAI;
         
         async function loadOpenAI() {
@@ -1010,8 +1013,62 @@
 
         let openaiClients = {};
 
+        const el = {
+            userSettingsBtn: qs('#userSettingsBtn'),
+            cancelUserSettingsBtn: qs('#cancelUserSettingsBtn'),
+            userSettingsForm: qs('#userSettingsForm'),
+            userNickname: qs('#userNickname'),
+            globalBaseUrl: qs('#globalBaseUrl'),
+            globalApiKey: qs('#globalApiKey'),
+            globalModel: qs('#globalModel'),
+            refreshModelsBtn: qs('#refreshModelsBtn'),
+            userSettingsModal: qs('#userSettingsModal'),
+            
+            createGroupBtn: qs('#createGroupBtn'),
+            cancelGroupModalBtn: qs('#cancelGroupModalBtn'),
+            groupForm: qs('#groupForm'),
+            groupName: qs('#groupName'),
+            groupDesc: qs('#groupDesc'),
+            groupAutoReply: qs('#groupAutoReply'),
+            groupMaxRounds: qs('#groupMaxRounds'),
+            agentCheckboxList: qs('#agentCheckboxList'),
+            groupModal: qs('#groupModal'),
+            groupModalTitle: qs('#groupModalTitle'),
+            groupList: qs('#groupList'),
+            
+            createAgentBtn: qs('#createAgentBtn'),
+            cancelAgentModalBtn: qs('#cancelAgentModalBtn'),
+            agentForm: qs('#agentForm'),
+            agentName: qs('#agentName'),
+            agentRole: qs('#agentRole'),
+            agentPrompt: qs('#agentPrompt'),
+            agentColor: qs('#agentColor'),
+            agentUseGlobal: qs('#agentUseGlobal'),
+            agentConfigSection: qs('#agentConfigSection'),
+            agentBaseUrl: qs('#agentBaseUrl'),
+            agentApiKey: qs('#agentApiKey'),
+            agentModel: qs('#agentModel'),
+            agentTemperature: qs('#agentTemperature'),
+            agentMaxTokens: qs('#agentMaxTokens'),
+            agentModal: qs('#agentModal'),
+            agentModalTitle: qs('#agentModalTitle'),
+            agentList: qs('#agentList'),
+            
+            toggleSidebarBtn: qs('#toggleSidebarBtn'),
+            toggleRightSidebarBtn: qs('#toggleRightSidebarBtn'),
+            editGroupBtn: qs('#editGroupBtn'),
+            clearChatBtn: qs('#clearChatBtn'),
+            currentGroupName: qs('#currentGroupName'),
+            groupAgents: qs('#groupAgents'),
+            chatMessages: qs('#chatMessages'),
+            userInput: qs('#userInput'),
+            sendBtn: qs('#sendBtn'),
+            toastContainer: qs('#toastContainer'),
+            userNameDisplay: qs('#userNameDisplay')
+        };
+
         function showToast(message, type = 'info', duration = 3000) {
-            const container = document.getElementById('toastContainer');
+            const container = el.toastContainer;
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             
@@ -1100,14 +1157,14 @@
             return openaiClients[key];
         }
 
-        async function loadModels() {
+        async function loadModels(e) {
             if (!globalSettings.apiKey || !globalSettings.baseUrl) {
                 showToast('请先配置 API Key 和 Base URL', 'warning');
                 return;
             }
 
             try {
-                const btn = event.target;
+                const btn = e ? e.target : el.refreshModelsBtn;
                 btn.disabled = true;
                 btn.innerHTML = '<div class="loading-spinner"></div>';
 
@@ -1126,6 +1183,7 @@
                 btn.textContent = '刷新';
                 showToast(`成功加载 ${models.length} 个模型`, 'success');
             } catch (error) {
+                const btn = e ? e.target : el.refreshModelsBtn;
                 btn.disabled = false;
                 btn.textContent = '刷新';
                 showToast('加载模型列表失败: ' + error.message, 'error');
@@ -1133,9 +1191,6 @@
         }
 
         function updateModelSelects() {
-            const globalSelect = document.getElementById('globalModel');
-            const agentSelect = document.getElementById('agentModel');
-            
             const defaultModels = [
                 { value: '', text: '-- 选择模型或点击刷新 --' },
                 { value: 'gpt-4-turbo', text: 'gpt-4-turbo' },
@@ -1147,7 +1202,7 @@
                 { value: 'claude-3-haiku', text: 'claude-3-haiku' }
             ];
 
-            [globalSelect, agentSelect].forEach(select => {
+            [el.globalModel, el.agentModel].forEach(select => {
                 const currentValue = select.value;
                 let options = '';
                 
@@ -1169,51 +1224,83 @@
         }
 
         function setupEventListeners() {
-            document.getElementById('userInput').addEventListener('keydown', (e) => {
+            el.userInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage();
                 }
             });
 
-            document.getElementById('agentForm').addEventListener('submit', (e) => {
+            el.userSettingsBtn.addEventListener('click', openUserSettingsModal);
+            el.cancelUserSettingsBtn.addEventListener('click', closeUserSettingsModal);
+            el.userSettingsForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                saveAgent();
+                saveUserSettings();
             });
 
-            document.getElementById('groupForm').addEventListener('submit', (e) => {
+            el.createGroupBtn.addEventListener('click', openGroupModal);
+            el.cancelGroupModalBtn.addEventListener('click', closeGroupModal);
+            el.groupForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 saveGroup();
             });
 
-            document.getElementById('userSettingsForm').addEventListener('submit', (e) => {
+            el.createAgentBtn.addEventListener('click', openAgentModal);
+            el.cancelAgentModalBtn.addEventListener('click', closeAgentModal);
+            el.agentForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                saveUserSettings();
+                saveAgent();
+            });
+
+            el.agentUseGlobal.addEventListener('change', toggleAgentConfig);
+            el.refreshModelsBtn.addEventListener('click', loadModels);
+
+            el.toggleSidebarBtn.addEventListener('click', toggleSidebar);
+            el.toggleRightSidebarBtn.addEventListener('click', toggleRightSidebar);
+            el.editGroupBtn.addEventListener('click', editCurrentGroup);
+            el.clearChatBtn.addEventListener('click', clearChat);
+            el.sendBtn.addEventListener('click', sendMessage);
+
+            el.agentList.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('[data-action="edit-agent"]');
+                const delBtn = e.target.closest('[data-action="delete-agent"]');
+                if (editBtn) editAgent(parseInt(editBtn.dataset.index));
+                if (delBtn) deleteAgent(parseInt(delBtn.dataset.index));
+            });
+
+            el.groupList.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('[data-action="edit-group"]');
+                const delBtn = e.target.closest('[data-action="delete-group"]');
+                const item = e.target.closest('.item[data-group-id]');
+                
+                if (editBtn) editGroup(parseInt(editBtn.dataset.index));
+                else if (delBtn) deleteGroup(parseInt(delBtn.dataset.index));
+                else if (item) selectGroup(item.dataset.groupId);
             });
         }
 
         function updateUserDisplay() {
-            document.getElementById('userNameDisplay').textContent = globalSettings.userName;
+            el.userNameDisplay.textContent = globalSettings.userName;
         }
 
         function openUserSettingsModal() {
-            document.getElementById('userNickname').value = globalSettings.userName;
-            document.getElementById('globalBaseUrl').value = globalSettings.baseUrl;
-            document.getElementById('globalApiKey').value = globalSettings.apiKey;
-            document.getElementById('globalModel').value = globalSettings.model;
+            el.userNickname.value = globalSettings.userName;
+            el.globalBaseUrl.value = globalSettings.baseUrl;
+            el.globalApiKey.value = globalSettings.apiKey;
+            el.globalModel.value = globalSettings.model;
             updateModelSelects();
-            document.getElementById('userSettingsModal').classList.add('active');
+            el.userSettingsModal.classList.add('active');
         }
 
         function closeUserSettingsModal() {
-            document.getElementById('userSettingsModal').classList.remove('active');
+            el.userSettingsModal.classList.remove('active');
         }
 
         async function saveUserSettings() {
-            globalSettings.userName = document.getElementById('userNickname').value;
-            globalSettings.baseUrl = document.getElementById('globalBaseUrl').value;
-            globalSettings.apiKey = document.getElementById('globalApiKey').value;
-            globalSettings.model = document.getElementById('globalModel').value;
+            globalSettings.userName = el.userNickname.value;
+            globalSettings.baseUrl = el.globalBaseUrl.value;
+            globalSettings.apiKey = el.globalApiKey.value;
+            globalSettings.model = el.globalModel.value;
 
             saveData();
             updateUserDisplay();
@@ -1223,14 +1310,12 @@
         }
 
         function renderAgents() {
-            const agentList = document.getElementById('agentList');
-            
             if (agents.length === 0) {
-                agentList.innerHTML = '<div class="empty-state"><p>还没有角色<br>点击下方创建</p></div>';
+                el.agentList.innerHTML = '<div class="empty-state"><p>还没有角色<br>点击下方创建</p></div>';
                 return;
             }
 
-            agentList.innerHTML = agents.map((agent, index) => {
+            el.agentList.innerHTML = agents.map((agent, index) => {
                 const config = agent.useGlobal ? globalSettings : agent;
                 return `
                     <div class="item">
@@ -1241,8 +1326,8 @@
                         <div class="item-desc">${agent.role || '未设置角色'}</div>
                         <div class="item-desc" style="font-size: 11px;">模型: ${config.model || 'gpt-3.5-turbo'}</div>
                         <div class="item-actions">
-                            <button class="btn btn-secondary" onclick="editAgent(${index})">编辑</button>
-                            <button class="btn btn-danger" onclick="deleteAgent(${index})">删除</button>
+                            <button class="btn btn-secondary" data-action="edit-agent" data-index="${index}">编辑</button>
+                            <button class="btn btn-danger" data-action="delete-agent" data-index="${index}">删除</button>
                         </div>
                     </div>
                 `;
@@ -1250,23 +1335,21 @@
         }
 
         function renderGroups() {
-            const groupList = document.getElementById('groupList');
-            
             if (groups.length === 0) {
-                groupList.innerHTML = '<div class="empty-state"><p>还没有群聊<br>点击下方创建</p></div>';
+                el.groupList.innerHTML = '<div class="empty-state"><p>还没有群聊<br>点击下方创建</p></div>';
                 return;
             }
 
-            groupList.innerHTML = groups.map((group, index) => {
+            el.groupList.innerHTML = groups.map((group, index) => {
                 const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
                 return `
-                    <div class="item ${currentGroupId === group.id ? 'active' : ''}" onclick="selectGroup('${group.id}')">
+                    <div class="item ${currentGroupId === group.id ? 'active' : ''}" data-group-id="${group.id}">
                         <div class="item-name">${group.name}</div>
                         <div class="item-desc">${group.desc || '无描述'}</div>
                         <div class="item-desc">${groupAgents.length + 1} 个参与者（含用户）</div>
                         <div class="item-actions">
-                            <button class="btn btn-secondary" onclick="event.stopPropagation(); editGroup(${index})">编辑</button>
-                            <button class="btn btn-danger" onclick="event.stopPropagation(); deleteGroup(${index})">删除</button>
+                            <button class="btn btn-secondary" data-action="edit-group" data-index="${index}">编辑</button>
+                            <button class="btn btn-danger" data-action="delete-group" data-index="${index}">删除</button>
                         </div>
                     </div>
                 `;
@@ -1274,15 +1357,14 @@
         }
 
         function renderMessages() {
-            const chatMessages = document.getElementById('chatMessages');
             const group = groups.find(g => g.id === currentGroupId);
             
             if (!group || !group.messages || group.messages.length === 0) {
-                chatMessages.innerHTML = '<div class="empty-state"><p>还没有消息<br>开始对话吧！</p></div>';
+                el.chatMessages.innerHTML = '<div class="empty-state"><p>还没有消息<br>开始对话吧！</p></div>';
                 return;
             }
 
-            chatMessages.innerHTML = group.messages.map(msg => {
+            el.chatMessages.innerHTML = group.messages.map(msg => {
                 const isUser = msg.role === 'user';
                 const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
                 const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
@@ -1304,7 +1386,7 @@
                 `;
             }).join('');
             
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
         }
 
         function selectGroup(groupId) {
@@ -1315,13 +1397,13 @@
 
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
             
-            document.getElementById('currentGroupName').textContent = group.name;
+            el.currentGroupName.textContent = group.name;
             const participantNames = [globalSettings.userName, ...groupAgents.map(a => a.name)];
-            document.getElementById('groupAgents').textContent = `参与者: ${participantNames.join(', ')}`;
-            document.getElementById('userInput').disabled = false;
-            document.getElementById('sendBtn').disabled = false;
-            document.getElementById('editGroupBtn').disabled = false;
-            document.getElementById('clearChatBtn').disabled = false;
+            el.groupAgents.textContent = `参与者: ${participantNames.join(', ')}`;
+            el.userInput.disabled = false;
+            el.sendBtn.disabled = false;
+            el.editGroupBtn.disabled = false;
+            el.clearChatBtn.disabled = false;
             
             renderGroups();
             renderMessages();
@@ -1329,69 +1411,68 @@
 
         function openAgentModal() {
             currentEditingAgent = null;
-            document.getElementById('agentModalTitle').textContent = '创建角色';
-            document.getElementById('agentForm').reset();
-            document.getElementById('agentColor').value = generateRandomColor();
-            document.getElementById('agentUseGlobal').checked = true;
+            el.agentModalTitle.textContent = '创建角色';
+            el.agentForm.reset();
+            el.agentColor.value = generateRandomColor();
+            el.agentUseGlobal.checked = true;
             toggleAgentConfig();
-            document.getElementById('agentModel').value = globalSettings.model;
-            document.getElementById('agentModal').classList.add('active');
+            el.agentModel.value = globalSettings.model;
+            el.agentModal.classList.add('active');
         }
 
         function closeAgentModal() {
-            document.getElementById('agentModal').classList.remove('active');
+            el.agentModal.classList.remove('active');
         }
 
         function toggleAgentConfig() {
-            const useGlobal = document.getElementById('agentUseGlobal').checked;
-            const configSection = document.getElementById('agentConfigSection');
+            const useGlobal = el.agentUseGlobal.checked;
             
             if (useGlobal) {
-                configSection.classList.add('hidden');
+                el.agentConfigSection.classList.add('hidden');
             } else {
-                configSection.classList.remove('hidden');
+                el.agentConfigSection.classList.remove('hidden');
             }
         }
 
         function editAgent(index) {
             currentEditingAgent = index;
             const agent = agents[index];
-            document.getElementById('agentModalTitle').textContent = '编辑角色';
-            document.getElementById('agentName').value = agent.name;
-            document.getElementById('agentRole').value = agent.role || '';
-            document.getElementById('agentPrompt').value = agent.prompt;
-            document.getElementById('agentColor').value = agent.color;
-            document.getElementById('agentUseGlobal').checked = agent.useGlobal !== false;
+            el.agentModalTitle.textContent = '编辑角色';
+            el.agentName.value = agent.name;
+            el.agentRole.value = agent.role || '';
+            el.agentPrompt.value = agent.prompt;
+            el.agentColor.value = agent.color;
+            el.agentUseGlobal.checked = agent.useGlobal !== false;
             toggleAgentConfig();
             
             if (!agent.useGlobal) {
-                document.getElementById('agentBaseUrl').value = agent.baseUrl || '';
-                document.getElementById('agentApiKey').value = agent.apiKey || '';
-                document.getElementById('agentTemperature').value = agent.temperature || 0.7;
-                document.getElementById('agentMaxTokens').value = agent.maxTokens || 2000;
+                el.agentBaseUrl.value = agent.baseUrl || '';
+                el.agentApiKey.value = agent.apiKey || '';
+                el.agentTemperature.value = agent.temperature || 0.7;
+                el.agentMaxTokens.value = agent.maxTokens || 2000;
             }
-            document.getElementById('agentModel').value = agent.model || globalSettings.model;
-            document.getElementById('agentModal').classList.add('active');
+            el.agentModel.value = agent.model || globalSettings.model;
+            el.agentModal.classList.add('active');
         }
 
         function saveAgent() {
-            const useGlobal = document.getElementById('agentUseGlobal').checked;
+            const useGlobal = el.agentUseGlobal.checked;
             
             const agent = {
                 id: currentEditingAgent !== null ? agents[currentEditingAgent].id : generateId(),
-                name: document.getElementById('agentName').value,
-                role: document.getElementById('agentRole').value,
-                prompt: document.getElementById('agentPrompt').value,
-                color: document.getElementById('agentColor').value,
+                name: el.agentName.value,
+                role: el.agentRole.value,
+                prompt: el.agentPrompt.value,
+                color: el.agentColor.value,
                 useGlobal: useGlobal,
-                model: document.getElementById('agentModel').value || globalSettings.model
+                model: el.agentModel.value || globalSettings.model
             };
 
             if (!useGlobal) {
-                agent.baseUrl = document.getElementById('agentBaseUrl').value;
-                agent.apiKey = document.getElementById('agentApiKey').value;
-                agent.temperature = parseFloat(document.getElementById('agentTemperature').value);
-                agent.maxTokens = parseInt(document.getElementById('agentMaxTokens').value);
+                agent.baseUrl = el.agentBaseUrl.value;
+                agent.apiKey = el.agentApiKey.value;
+                agent.temperature = parseFloat(el.agentTemperature.value);
+                agent.maxTokens = parseInt(el.agentMaxTokens.value);
             }
 
             if (currentEditingAgent !== null) {
@@ -1430,16 +1511,16 @@
             }
 
             currentEditingGroup = null;
-            document.getElementById('groupModalTitle').textContent = '创建群聊';
-            document.getElementById('groupForm').reset();
-            document.getElementById('groupAutoReply').checked = true;
-            document.getElementById('groupMaxRounds').value = '5';
+            el.groupModalTitle.textContent = '创建群聊';
+            el.groupForm.reset();
+            el.groupAutoReply.checked = true;
+            el.groupMaxRounds.value = '5';
             renderAgentCheckboxes();
-            document.getElementById('groupModal').classList.add('active');
+            el.groupModal.classList.add('active');
         }
 
         function closeGroupModal() {
-            document.getElementById('groupModal').classList.remove('active');
+            el.groupModal.classList.remove('active');
         }
 
         function editCurrentGroup() {
@@ -1451,18 +1532,17 @@
         function editGroup(index) {
             currentEditingGroup = index;
             const group = groups[index];
-            document.getElementById('groupModalTitle').textContent = '编辑群聊';
-            document.getElementById('groupName').value = group.name;
-            document.getElementById('groupDesc').value = group.desc || '';
-            document.getElementById('groupAutoReply').checked = group.autoReply;
-            document.getElementById('groupMaxRounds').value = group.maxRounds;
+            el.groupModalTitle.textContent = '编辑群聊';
+            el.groupName.value = group.name;
+            el.groupDesc.value = group.desc || '';
+            el.groupAutoReply.checked = group.autoReply;
+            el.groupMaxRounds.value = group.maxRounds;
             renderAgentCheckboxes(group.agentIds);
-            document.getElementById('groupModal').classList.add('active');
+            el.groupModal.classList.add('active');
         }
 
         function renderAgentCheckboxes(selectedIds = []) {
-            const container = document.getElementById('agentCheckboxList');
-            container.innerHTML = agents.map(agent => `
+            el.agentCheckboxList.innerHTML = agents.map(agent => `
                 <div class="checkbox-item">
                     <input type="checkbox" id="agent_${agent.id}" value="${agent.id}" 
                         ${selectedIds.includes(agent.id) ? 'checked' : ''}>
@@ -1475,7 +1555,7 @@
         }
 
         function saveGroup() {
-            const selectedAgentIds = Array.from(document.querySelectorAll('#agentCheckboxList input:checked'))
+            const selectedAgentIds = Array.from(qsa('#agentCheckboxList input:checked'))
                 .map(input => input.value);
 
             if (selectedAgentIds.length === 0) {
@@ -1485,11 +1565,11 @@
 
             const group = {
                 id: currentEditingGroup !== null ? groups[currentEditingGroup].id : generateId(),
-                name: document.getElementById('groupName').value,
-                desc: document.getElementById('groupDesc').value,
+                name: el.groupName.value,
+                desc: el.groupDesc.value,
                 agentIds: selectedAgentIds,
-                autoReply: document.getElementById('groupAutoReply').checked,
-                maxRounds: parseInt(document.getElementById('groupMaxRounds').value),
+                autoReply: el.groupAutoReply.checked,
+                maxRounds: parseInt(el.groupMaxRounds.value),
                 messages: currentEditingGroup !== null ? groups[currentEditingGroup].messages : []
             };
 
@@ -1512,13 +1592,13 @@
                 
                 if (currentGroupId === groupId) {
                     currentGroupId = null;
-                    document.getElementById('currentGroupName').textContent = '选择一个群聊开始对话';
-                    document.getElementById('groupAgents').textContent = '';
-                    document.getElementById('userInput').disabled = true;
-                    document.getElementById('sendBtn').disabled = true;
-                    document.getElementById('editGroupBtn').disabled = true;
-                    document.getElementById('clearChatBtn').disabled = true;
-                    document.getElementById('chatMessages').innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
+                    el.currentGroupName.textContent = '选择一个群聊开始对话';
+                    el.groupAgents.textContent = '';
+                    el.userInput.disabled = true;
+                    el.sendBtn.disabled = true;
+                    el.editGroupBtn.disabled = true;
+                    el.clearChatBtn.disabled = true;
+                    el.chatMessages.innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
                 }
                 
                 saveData();
@@ -1527,8 +1607,7 @@
         }
 
         async function sendMessage() {
-            const input = document.getElementById('userInput');
-            const content = input.value.trim();
+            const content = el.userInput.value.trim();
             
             if (!content || !currentGroupId) return;
             
@@ -1543,7 +1622,7 @@
 
             if (!group.messages) group.messages = [];
             group.messages.push(userMessage);
-            input.value = '';
+            el.userInput.value = '';
             saveData();
             renderMessages();
 
@@ -1585,7 +1664,7 @@
                     } else {
                         const msgAgent = agents.find(a => a.id === msg.agentId);
                         return { 
-                            role: 'assistant', 
+                            role: 'user', 
                             content: `[${msgAgent ? msgAgent.name : '未知'}]: ${msg.content}` 
                         };
                     }
@@ -1599,7 +1678,7 @@
 
                 conversationHistory.unshift({
                     role: 'system',
-                    content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。请以 ${agent.name} 的身份自然地回复对话。`
+                    content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。请你以你的身份自然地回复对话。`
                 });
 
                 const assistantMessage = {
@@ -1642,7 +1721,6 @@
         }
 
         function showStreamingMessage(agent) {
-            const chatMessages = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message';
             messageDiv.id = 'streamingMessage';
@@ -1658,21 +1736,20 @@
                     <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;"></div>
                 </div>
             `;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            el.chatMessages.appendChild(messageDiv);
+            el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
         }
 
         function updateStreamingMessage(agent, content) {
-            const streamingContent = document.getElementById('streamingContent');
+            const streamingContent = qs('#streamingContent');
             if (streamingContent) {
                 streamingContent.textContent = content;
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
             }
         }
 
         function removeStreamingIndicator() {
-            const indicator = document.getElementById('streamingMessage');
+            const indicator = qs('#streamingMessage');
             if (indicator) indicator.remove();
         }
 
@@ -1710,13 +1787,13 @@
         }
 
         function toggleSidebar() {
-            const sidebar = document.querySelector('.sidebar');
+            const sidebar = qs('.sidebar');
             sidebar.classList.toggle('hidden');
             localStorage.setItem('sidebarHidden', sidebar.classList.contains('hidden'));
         }
 
         function toggleRightSidebar() {
-            const sidebarRight = document.querySelector('.sidebar-right');
+            const sidebarRight = qs('.sidebar-right');
             sidebarRight.classList.toggle('hidden');
             localStorage.setItem('sidebarRightHidden', sidebarRight.classList.contains('hidden'));
         }
@@ -1726,10 +1803,10 @@
             const isRightSidebarHidden = localStorage.getItem('sidebarRightHidden') === 'true';
             
             if (isSidebarHidden) {
-                document.querySelector('.sidebar').classList.add('hidden');
+                qs('.sidebar').classList.add('hidden');
             }
             if (isRightSidebarHidden) {
-                document.querySelector('.sidebar-right').classList.add('hidden');
+                qs('.sidebar-right').classList.add('hidden');
             }
         }
 
