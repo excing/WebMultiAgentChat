@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多AI角色群聊</title>
-    <script src="https://cdn.jsdelivr.net/npm/openai@6.4.0/+esm"></script>
     <style>
         * {
             margin: 0;
@@ -452,6 +451,228 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .sidebar, .sidebar-right {
+            transition: all 0.3s ease;
+        }
+
+        .sidebar.hidden {
+            width: 0;
+            padding: 0;
+            border: none;
+            overflow: hidden;
+            box-shadow: none;
+        }
+
+        .sidebar-right.hidden {
+            width: 0;
+            padding: 0;
+            border: none;
+            overflow: hidden;
+            box-shadow: none;
+        }
+
+        .sidebar-toggle {
+            background: white;
+            border: 1px solid #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+            margin-right: 10px;
+            transition: all 0.2s;
+        }
+
+        .sidebar-toggle:hover {
+            background: #f5f5f5;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                gap: 10px;
+                padding: 10px;
+            }
+
+            .sidebar {
+                width: 250px;
+            }
+
+            .sidebar-right {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                gap: 0;
+                padding: 0;
+            }
+
+            .sidebar, .sidebar-right {
+                position: fixed;
+                height: calc(100vh - 60px);
+                border-radius: 0;
+                z-index: 1000;
+                top: 60px;
+                transition: all 0.3s ease;
+                width: 280px;
+            }
+
+            .sidebar {
+                left: 0;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+
+            .sidebar.hidden {
+                width: 280px;
+                padding: 20px;
+                border: none;
+                transform: translateX(-100%);
+            }
+
+            .sidebar-right {
+                right: 0;
+                box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            }
+
+            .sidebar-right.hidden {
+                width: 280px;
+                padding: 20px;
+                border: none;
+                transform: translateX(100%);
+            }
+
+            .main-content {
+                flex: 1;
+                border-radius: 0;
+                margin: 0;
+            }
+
+            .sidebar-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .chat-header {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            .chat-header > div:first-child {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .chat-header > div:last-child {
+                display: flex;
+                gap: 5px;
+                flex-wrap: wrap;
+            }
+
+            #currentGroupName {
+                font-size: 16px;
+            }
+
+            #groupAgents {
+                font-size: 11px;
+            }
+
+            .btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .chat-input {
+                flex-direction: row;
+                padding: 10px;
+                gap: 5px;
+            }
+
+            .chat-input textarea {
+                font-size: 14px;
+                padding: 8px;
+                max-height: 80px;
+            }
+
+            .modal-content {
+                width: 95%;
+                max-width: 500px;
+                padding: 20px;
+                max-height: 90vh;
+            }
+
+            .form-group input,
+            .form-group textarea,
+            .form-group select {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 0;
+            }
+
+            .sidebar, .sidebar-right {
+                width: 100%;
+                height: calc(100vh - 50px);
+                top: 50px;
+            }
+
+            .chat-header {
+                padding: 10px;
+                gap: 5px;
+            }
+
+            .chat-messages {
+                padding: 10px;
+            }
+
+            .message {
+                margin-bottom: 12px;
+                gap: 8px;
+            }
+
+            .message-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+            }
+
+            .message-name {
+                font-size: 13px;
+            }
+
+            .message-text {
+                padding: 8px;
+                font-size: 13px;
+            }
+
+            .sidebar-toggle {
+                padding: 6px 8px;
+                font-size: 16px;
+                margin-right: 5px;
+            }
+
+            #currentGroupName {
+                font-size: 14px;
+            }
+
+            .btn {
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+        }
+
+        .header-toggle-group {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -471,13 +692,17 @@
 
         <div class="main-content">
             <div class="chat-header">
-                <div>
-                    <h2 id="currentGroupName">选择一个群聊开始对话</h2>
-                    <div id="groupAgents" style="font-size: 12px; color: #666; margin-top: 4px;"></div>
+                <div class="header-toggle-group">
+                    <button class="sidebar-toggle" id="toggleSidebarBtn" onclick="toggleSidebar()">☰</button>
+                    <div style="flex: 1; min-width: 0;">
+                        <h2 id="currentGroupName">选择一个群聊开始对话</h2>
+                        <div id="groupAgents" style="font-size: 12px; color: #666; margin-top: 4px;"></div>
+                    </div>
                 </div>
                 <div>
                     <button class="btn btn-secondary" onclick="editCurrentGroup()" id="editGroupBtn" disabled>编辑群聊</button>
                     <button class="btn btn-secondary" onclick="clearChat()" id="clearChatBtn" disabled>清空对话</button>
+                    <button class="sidebar-toggle" id="toggleRightSidebarBtn" onclick="toggleRightSidebar()" style="margin-left: 5px;">⋮</button>
                 </div>
             </div>
             <div class="chat-messages" id="chatMessages">
@@ -654,6 +879,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/openai@6.4.0/+esm"></script>
     <script>
         let agents = [];
         let groups = [];
@@ -1331,7 +1557,32 @@
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
 
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.toggle('hidden');
+            localStorage.setItem('sidebarHidden', sidebar.classList.contains('hidden'));
+        }
+
+        function toggleRightSidebar() {
+            const sidebarRight = document.querySelector('.sidebar-right');
+            sidebarRight.classList.toggle('hidden');
+            localStorage.setItem('sidebarRightHidden', sidebarRight.classList.contains('hidden'));
+        }
+
+        function restoreSidebarState() {
+            const isSidebarHidden = localStorage.getItem('sidebarHidden') === 'true';
+            const isRightSidebarHidden = localStorage.getItem('sidebarRightHidden') === 'true';
+            
+            if (isSidebarHidden) {
+                document.querySelector('.sidebar').classList.add('hidden');
+            }
+            if (isRightSidebarHidden) {
+                document.querySelector('.sidebar-right').classList.add('hidden');
+            }
+        }
+
         init();
+        restoreSidebarState();
     </script>
 </body>
 </html>
