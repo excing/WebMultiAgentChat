@@ -1198,8 +1198,6 @@
         }
 
         async function getAgentResponse(group, agent) {
-            showTypingIndicator(agent);
-
             try {
                 const config = agent.useGlobal !== false ? globalSettings : agent;
                 
@@ -1226,57 +1224,77 @@
                     content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。请以 ${agent.name} 的身份自然地回复对话。`
                 });
 
-                const client = getOpenAIClient(config);
-                const response = await client.chat.completions.create({
-                    model: config.model,
-                    messages: conversationHistory,
-                    temperature: config.temperature || 0.7,
-                    max_tokens: config.maxTokens || 2000
-                });
-
                 const assistantMessage = {
                     role: 'assistant',
                     agentId: agent.id,
-                    content: response.choices[0].message.content,
+                    content: '',
                     timestamp: Date.now()
                 };
 
-                removeTypingIndicator();
                 group.messages.push(assistantMessage);
+                const msgIndex = group.messages.length - 1;
+                showStreamingMessage(agent);
+
+                const client = getOpenAIClient(config);
+                const stream = await client.chat.completions.create({
+                    model: config.model,
+                    messages: conversationHistory,
+                    temperature: config.temperature || 0.7,
+                    max_tokens: config.maxTokens || 2000,
+                    stream: true
+                });
+
+                for await (const chunk of stream) {
+                    const delta = chunk.choices[0]?.delta?.content;
+                    if (delta) {
+                        group.messages[msgIndex].content += delta;
+                        updateStreamingMessage(agent, group.messages[msgIndex].content);
+                    }
+                }
+
+                removeStreamingIndicator();
                 saveData();
                 renderMessages();
 
             } catch (error) {
-                removeTypingIndicator();
+                removeStreamingIndicator();
                 console.error('Error:', error);
                 alert(`角色 ${agent.name} 响应失败: ${error.message}`);
             }
         }
 
-        function showTypingIndicator(agent) {
+        function showStreamingMessage(agent) {
             const chatMessages = document.getElementById('chatMessages');
-            const indicator = document.createElement('div');
-            indicator.className = 'message';
-            indicator.id = 'typingIndicator';
-            indicator.innerHTML = `
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.id = 'streamingMessage';
+            messageDiv.innerHTML = `
                 <div class="message-avatar" style="background: ${agent.color}">
                     ${agent.name.charAt(0).toUpperCase()}
                 </div>
                 <div class="message-content">
                     <div class="message-header">
                         <span class="message-name">${agent.name}</span>
+                        <span class="message-time" id="streamingTime">${formatTime(Date.now())}</span>
                     </div>
-                    <div class="typing-indicator">
-                        <span></span><span></span><span></span>
-                    </div>
+                    <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;"></div>
                 </div>
             `;
-            chatMessages.appendChild(indicator);
+            chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        function removeTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
+        function updateStreamingMessage(agent, content) {
+            const streamingContent = document.getElementById('streamingContent');
+            if (streamingContent) {
+                streamingContent.textContent = content;
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        function removeStreamingIndicator() {
+            const indicator = document.getElementById('streamingMessage');
             if (indicator) indicator.remove();
         }
 
