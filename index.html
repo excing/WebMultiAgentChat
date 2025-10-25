@@ -984,8 +984,17 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/openai@6.4.0/+esm"></script>
-    <script>
+    <script type="module">
+        let OpenAI;
+        
+        async function loadOpenAI() {
+            if (!OpenAI) {
+                const module = await import('https://cdn.jsdelivr.net/npm/openai@6.4.0/+esm');
+                OpenAI = module.default;
+            }
+            return OpenAI;
+        }
+
         let agents = [];
         let groups = [];
         let currentGroupId = null;
@@ -1036,7 +1045,7 @@
             renderAgents();
             renderGroups();
             updateUserDisplay();
-            initOpenAI();
+            initOpenAI().catch(e => console.error('初始化 OpenAI 客户端失败:', e));
             setupEventListeners();
         }
 
@@ -1056,29 +1065,37 @@
             localStorage.setItem('globalSettings_v3', JSON.stringify(globalSettings));
         }
 
-        function initOpenAI() {
+        async function initOpenAI() {
             if (!globalSettings.apiKey) return;
             
             try {
+                const OpenAIClass = await loadOpenAI();
                 const key = `global_${globalSettings.apiKey.slice(0, 10)}`;
-                openaiClients[key] = new OpenAI({
+                openaiClients[key] = new OpenAIClass({
                     apiKey: globalSettings.apiKey,
                     baseURL: globalSettings.baseUrl,
                     dangerouslyAllowBrowser: true
                 });
             } catch (e) {
                 console.error('OpenAI 初始化失败:', e);
+                showToast('OpenAI 初始化失败: ' + e.message, 'error');
             }
         }
 
-        function getOpenAIClient(config) {
+        async function getOpenAIClient(config) {
             const key = `${config.apiKey.slice(0, 10)}_${config.baseUrl}`;
             if (!openaiClients[key]) {
-                openaiClients[key] = new OpenAI({
-                    apiKey: config.apiKey,
-                    baseURL: config.baseUrl,
-                    dangerouslyAllowBrowser: true
-                });
+                try {
+                    const OpenAIClass = await loadOpenAI();
+                    openaiClients[key] = new OpenAIClass({
+                        apiKey: config.apiKey,
+                        baseURL: config.baseUrl,
+                        dangerouslyAllowBrowser: true
+                    });
+                } catch (e) {
+                    console.error('OpenAI 客户端初始化失败:', e);
+                    throw e;
+                }
             }
             return openaiClients[key];
         }
@@ -1094,7 +1111,7 @@
                 btn.disabled = true;
                 btn.innerHTML = '<div class="loading-spinner"></div>';
 
-                const client = getOpenAIClient(globalSettings);
+                const client = await getOpenAIClient(globalSettings);
                 const response = await client.models.list();
 
                 const models = response.data
@@ -1192,7 +1209,7 @@
             document.getElementById('userSettingsModal').classList.remove('active');
         }
 
-        function saveUserSettings() {
+        async function saveUserSettings() {
             globalSettings.userName = document.getElementById('userNickname').value;
             globalSettings.baseUrl = document.getElementById('globalBaseUrl').value;
             globalSettings.apiKey = document.getElementById('globalApiKey').value;
@@ -1200,7 +1217,7 @@
 
             saveData();
             updateUserDisplay();
-            initOpenAI();
+            await initOpenAI();
             closeUserSettingsModal();
             showToast('设置已保存', 'success');
         }
@@ -1596,7 +1613,7 @@
                 const msgIndex = group.messages.length - 1;
                 showStreamingMessage(agent);
 
-                const client = getOpenAIClient(config);
+                const client = await getOpenAIClient(config);
                 const stream = await client.chat.completions.create({
                     model: config.model,
                     messages: conversationHistory,
