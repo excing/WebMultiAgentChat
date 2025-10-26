@@ -1663,10 +1663,21 @@
                         return { role: 'user', content: `[${globalSettings.userName}]: ${msg.content}` };
                     } else {
                         const msgAgent = agents.find(a => a.id === msg.agentId);
-                        return { 
-                            role: 'assistant', 
-                            content: `[${msgAgent ? msgAgent.name : '未知'}]: ${msg.content}` 
-                        };
+                        const agentName = msgAgent ? msgAgent.name : '未知';
+                        
+                        if (msg.agentId === agent.id) {
+                            // 自己的历史消息保持 assistant
+                            return { 
+                                role: 'assistant', 
+                                content: `[${agentName}]: ${msg.content}` 
+                            };
+                        } else {
+                            // 其他 AI 的消息转为 user
+                            return { 
+                                role: 'user', 
+                                content: `[${agentName}]: ${msg.content}` 
+                            };
+                        }
                     }
                 });
 
