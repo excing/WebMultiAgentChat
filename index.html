@@ -280,6 +280,20 @@
             background: #f9fafb;
         }
 
+        /* 系统提示（元信息/上下文锚点）样式 */
+        .system-message {
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            margin: 14px 0;
+            line-height: 1.4;
+            padding: 0 8px;
+        }
+        .system-message.system-info { color: #64748b; }
+        .system-message.system-success { color: #16a34a; }
+        .system-message.system-warning { color: #b45309; }
+        .system-message.system-error { color: #b91c1c; }
+
         .message {
             margin-bottom: 20px;
             display: flex;
@@ -1573,6 +1587,14 @@
             }
 
             el.chatMessages.innerHTML = group.messages.map(msg => {
+                if (msg.role === 'system') {
+                    const lvl = msg.level || 'info';
+                    return `
+                        <div class="system-message system-${lvl}">
+                            ${escapeHtml(msg.content)}
+                        </div>
+                    `;
+                }
                 const isUser = msg.role === 'user';
                 const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
                 const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
@@ -1869,7 +1891,8 @@
             try {
                 const config = resolveAgentConfig(agent, globalSettings);
                 
-                const conversationHistory = group.messages.map(msg => {
+                const historySource = group.messages.filter(m => m.role !== 'system');
+                const conversationHistory = historySource.map(msg => {
                     if (msg.role === 'user') {
                         return { role: 'user', content: `[${globalSettings.userName}]: ${msg.content}` };
                     } else {
@@ -1948,7 +1971,7 @@
                     group.messages.splice(msgIndex, 1);
                     saveData();
                     renderMessages();
-                    showToast(`角色 ${agent.name} 未返回内容`, 'info');
+                    addSystemMessage(group, `角色 ${agent.name} 未返回内容`, 'info');
                     return;
                 }
                 // 正常内容，保存渲染
@@ -1965,8 +1988,17 @@
                 }
                 saveData();
                 renderMessages();
-                showToast(`角色 ${agent.name} 响应失败: ${error.message}`, 'error');
+                addSystemMessage(group, `角色 ${agent.name} 响应失败: ${error.message}`, 'error');
             }
+        }
+
+        // 向聊天列表插入系统提示（居中、弱化、颜色区分）
+        function addSystemMessage(group, content, level = 'info') {
+            if (!group) return;
+            if (!group.messages) group.messages = [];
+            group.messages.push({ role: 'system', content, level, timestamp: Date.now() });
+            saveData();
+            renderMessages();
         }
 
         function showStreamingMessage(agent) {
