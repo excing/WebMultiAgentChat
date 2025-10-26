@@ -1130,6 +1130,15 @@
                         <option value="ai_selector">AI 决定（参考上下文）</option>
                     </select>
                 </div>
+                <div class="form-group" id="groupSelectorModelWrap" style="display:none;">
+                    <label>选择器模型</label>
+                    <div style="display:flex; gap:10px;">
+                        <select id="groupSelectorModel" style="flex:1;">
+                            <option value="">-- 选择模型或点击刷新 --</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary" id="groupSelectorRefreshModelsBtn">刷新</button>
+                    </div>
+                </div>
                 <div class="form-group" id="groupMaxRoundsWrap">
                     <label>最大自动回复轮数</label>
                     <input type="number" id="groupMaxRounds" min="1" max="20" value="5">
@@ -1191,6 +1200,9 @@
             groupAutoReply: qs('#groupAutoReply'),
             groupAutoReplyMode: qs('#groupAutoReplyMode'),
             groupAutoReplyModeWrap: qs('#groupAutoReplyModeWrap'),
+            groupSelectorModelWrap: qs('#groupSelectorModelWrap'),
+            groupSelectorModel: qs('#groupSelectorModel'),
+            groupSelectorRefreshModelsBtn: qs('#groupSelectorRefreshModelsBtn'),
             groupMaxRounds: qs('#groupMaxRounds'),
             groupMaxRoundsWrap: qs('#groupMaxRoundsWrap'),
             agentCheckboxList: qs('#agentCheckboxList'),
@@ -1459,6 +1471,7 @@
             });
             el.groupAutoReply.addEventListener('change', updateGroupAutoReplyUI);
             if (el.groupAutoReplyMode) el.groupAutoReplyMode.addEventListener('change', updateGroupAutoReplyUI);
+            if (el.groupSelectorRefreshModelsBtn) el.groupSelectorRefreshModelsBtn.addEventListener('click', loadSelectorModels);
 
             el.createAgentBtn.addEventListener('click', openAgentModal);
             el.cancelAgentModalBtn.addEventListener('click', closeAgentModal);
@@ -1762,6 +1775,10 @@
             el.groupAutoReply.checked = true;
             el.groupMaxRounds.value = '5';
             if (el.groupAutoReplyMode) el.groupAutoReplyMode.value = 'round_robin';
+            if (el.groupSelectorModel) {
+                updateSelectorModelSelect();
+                el.groupSelectorModel.value = globalSettings.model || '';
+            }
             renderAgentCheckboxes();
             updateGroupAutoReplyUI();
             el.groupModal.classList.add('active');
@@ -1786,6 +1803,17 @@
             el.groupAutoReply.checked = group.autoReply;
             el.groupMaxRounds.value = (group.maxRounds ?? 5);
             if (el.groupAutoReplyMode) el.groupAutoReplyMode.value = group.autoReplyMode || 'round_robin';
+            if (el.groupSelectorModel) {
+                updateSelectorModelSelect();
+                el.groupSelectorModel.value = group.selectorModel || globalSettings.model || '';
+                if (el.groupSelectorModel.value !== (group.selectorModel || globalSettings.model || '')) {
+                    const opt = document.createElement('option');
+                    opt.value = group.selectorModel || globalSettings.model || '';
+                    opt.textContent = group.selectorModel || globalSettings.model || '';
+                    el.groupSelectorModel.appendChild(opt);
+                    el.groupSelectorModel.value = group.selectorModel || globalSettings.model || '';
+                }
+            }
             renderAgentCheckboxes(group.agentIds);
             updateGroupAutoReplyUI();
             el.groupModal.classList.add('active');
@@ -1821,6 +1849,7 @@
                 autoReply: el.groupAutoReply.checked,
                 autoReplyMode: el.groupAutoReplyMode ? el.groupAutoReplyMode.value : 'round_robin',
                 maxRounds: parseInt(el.groupMaxRounds.value),
+                selectorModel: (el.groupAutoReplyMode && el.groupAutoReplyMode.value === 'ai_selector') ? (el.groupSelectorModel?.value || '') : (groups[currentEditingGroup]?.selectorModel || ''),
                 messages: currentEditingGroup !== null ? groups[currentEditingGroup].messages : []
             };
 
@@ -1976,7 +2005,7 @@
 候选人列表（仅可从这些名称中选择）：${JSON.stringify(candidateList)}。`
                 };
                 const resp = await client.chat.completions.create({
-                    model: globalSettings.model || 'gpt-3.5-turbo',
+                    model: (groups.find(g=>g.id===group.id)?.selectorModel) || group.selectorModel || globalSettings.model || 'gpt-3.5-turbo',
                     temperature: 0.2,
                     max_tokens: 60,
                     messages: [sys, ...history]
@@ -2013,6 +2042,57 @@
             if (el.groupMaxRoundsWrap) {
                 const showRounds = enabled; // 所有模式下均显示，作为安全上限
                 el.groupMaxRoundsWrap.style.display = showRounds ? '' : 'none';
+            }
+            if (el.groupSelectorModelWrap) {
+                const showSelector = enabled && mode === 'ai_selector';
+                el.groupSelectorModelWrap.style.display = showSelector ? '' : 'none';
+            }
+        }
+
+        function updateSelectorModelSelect() {
+            if (!el.groupSelectorModel) return;
+            const models = (globalSettings.models && globalSettings.models.length > 0)
+                ? globalSettings.models
+                : [
+                    '', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'gpt-3.5-turbo-16k',
+                    'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'
+                  ];
+            if (models[0] === '') {
+                el.groupSelectorModel.innerHTML = [
+                    '<option value="">-- 选择模型或点击刷新 --</option>',
+                    '<option value="gpt-4-turbo">gpt-4-turbo</option>',
+                    '<option value="gpt-4">gpt-4</option>',
+                    '<option value="gpt-3.5-turbo">gpt-3.5-turbo</option>',
+                    '<option value="gpt-3.5-turbo-16k">gpt-3.5-turbo-16k</option>',
+                    '<option value="claude-3-opus">claude-3-opus</option>',
+                    '<option value="claude-3-sonnet">claude-3-sonnet</option>',
+                    '<option value="claude-3-haiku">claude-3-haiku</option>'
+                ].join('');
+            } else {
+                el.groupSelectorModel.innerHTML = models.map(m=>`<option value="${m}">${m}</option>`).join('');
+            }
+        }
+
+        async function loadSelectorModels(e) {
+            if (!globalSettings.apiKey || !globalSettings.baseUrl) {
+                showToast('请先配置 API Key 和 Base URL', 'warning');
+                return;
+            }
+            try {
+                const btn = e ? e.target : el.groupSelectorRefreshModelsBtn;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loading-spinner"></div>'; }
+                const client = await getOpenAIClient(globalSettings);
+                const response = await client.models.list();
+                const models = response.data.map(m=>m.id).sort((a,b)=>a.localeCompare(b));
+                globalSettings.models = models;
+                saveData();
+                updateSelectorModelSelect();
+                if (btn) { btn.disabled = false; btn.textContent = '刷新'; }
+                showToast(`成功加载 ${models.length} 个模型`, 'success');
+            } catch (error) {
+                const btn = e ? e.target : el.groupSelectorRefreshModelsBtn;
+                if (btn) { btn.disabled = false; btn.textContent = '刷新'; }
+                showToast('加载模型列表失败: ' + error.message, 'error');
             }
         }
 
