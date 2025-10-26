@@ -330,6 +330,12 @@
             word-break: break-word;
         }
 
+        /* 更轻量的流式加载外观 */
+        .message.streaming { margin-bottom: 10px; }
+        .message.streaming .message-header { display: none; }
+        .message.streaming .message-avatar { width: 28px; height: 28px; font-size: 12px; }
+        .message.streaming .message-text { background: transparent; box-shadow: none; padding: 2px 0; }
+
         .message.user .message-text {
             background: #667eea;
             color: white;
@@ -1045,16 +1051,19 @@
                     </div>
                     <div class="form-group">
                         <label>模型</label>
-                        <select id="agentModel">
-                            <option value="">-- 选择模型 --</option>
-                            <option value="gpt-4-turbo">gpt-4-turbo</option>
-                            <option value="gpt-4">gpt-4</option>
-                            <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
-                            <option value="gpt-3.5-turbo-16k">gpt-3.5-turbo-16k</option>
-                            <option value="claude-3-opus">claude-3-opus</option>
-                            <option value="claude-3-sonnet">claude-3-sonnet</option>
-                            <option value="claude-3-haiku">claude-3-haiku</option>
-                        </select>
+                        <div style="display:flex; gap:10px;">
+                            <select id="agentModel" style="flex:1;">
+                                <option value="">-- 选择模型 --</option>
+                                <option value="gpt-4-turbo">gpt-4-turbo</option>
+                                <option value="gpt-4">gpt-4</option>
+                                <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                                <option value="gpt-3.5-turbo-16k">gpt-3.5-turbo-16k</option>
+                                <option value="claude-3-opus">claude-3-opus</option>
+                                <option value="claude-3-sonnet">claude-3-sonnet</option>
+                                <option value="claude-3-haiku">claude-3-haiku</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" id="agentRefreshModelsBtn">刷新</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Temperature (0-2)</label>
@@ -1149,6 +1158,7 @@
             globalApiKey: qs('#globalApiKey'),
             globalModel: qs('#globalModel'),
             refreshModelsBtn: qs('#refreshModelsBtn'),
+            agentRefreshModelsBtn: qs('#agentRefreshModelsBtn'),
             userSettingsModal: qs('#userSettingsModal'),
             
             createGroupBtn: qs('#createGroupBtn'),
@@ -1318,6 +1328,49 @@
             }
         }
 
+        async function loadAgentModels(e) {
+            try {
+                const btn = e ? e.target : el.agentRefreshModelsBtn;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loading-spinner"></div>'; }
+
+                // 根据是否使用全局配置选择来源；若自定义为空则回退全局
+                const useGlobal = el.agentUseGlobal?.checked !== false; // 未找到视为全局
+                const baseUrl = useGlobal ? globalSettings.baseUrl : (el.agentBaseUrl?.value || globalSettings.baseUrl);
+                const apiKey = useGlobal ? globalSettings.apiKey : (el.agentApiKey?.value || globalSettings.apiKey);
+                if (!apiKey || !baseUrl) {
+                    if (btn) { btn.disabled = false; btn.textContent = '刷新'; }
+                    showToast('请先填写可用的 API Key 和 Base URL', 'warning');
+                    return;
+                }
+
+                const client = await getOpenAIClient({ baseUrl, apiKey });
+                const response = await client.models.list();
+                const models = response.data.map(m => m.id).sort((a,b)=>a.localeCompare(b));
+
+                if (el.agentModel) {
+                    const currentValue = el.agentModel.value;
+                    el.agentModel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
+                    if (currentValue) {
+                        el.agentModel.value = currentValue;
+                        if (el.agentModel.value !== currentValue) {
+                            const opt = document.createElement('option');
+                            opt.value = currentValue;
+                            opt.textContent = currentValue;
+                            el.agentModel.appendChild(opt);
+                            el.agentModel.value = currentValue;
+                        }
+                    }
+                }
+
+                if (btn) { btn.disabled = false; btn.textContent = '刷新'; }
+                showToast(`成功加载 ${models.length} 个模型`, 'success');
+            } catch (error) {
+                const btn = e ? e.target : el.agentRefreshModelsBtn;
+                if (btn) { btn.disabled = false; btn.textContent = '刷新'; }
+                showToast('加载模型列表失败: ' + error.message, 'error');
+            }
+        }
+
         function updateModelSelects() {
             const defaultModels = [
                 { value: '', text: '-- 选择模型或点击刷新 --' },
@@ -1389,6 +1442,7 @@
 
             el.agentUseGlobal.addEventListener('change', toggleAgentConfig);
             el.refreshModelsBtn.addEventListener('click', loadModels);
+            if (el.agentRefreshModelsBtn) el.agentRefreshModelsBtn.addEventListener('click', loadAgentModels);
 
             el.toggleSidebarBtn.addEventListener('click', toggleSidebar);
             el.toggleRightSidebarBtn.addEventListener('click', toggleRightSidebar);
@@ -1855,9 +1909,9 @@
                     content: '',
                     timestamp: Date.now()
                 };
-
                 group.messages.push(assistantMessage);
                 const msgIndex = group.messages.length - 1;
+                let assembled = '';
                 showStreamingMessage(agent);
 
                 const client = await getOpenAIClient(config);
@@ -1871,7 +1925,7 @@
 
                 for await (const chunk of stream) {
                     let delta = chunk.choices[0]?.delta?.content;
-                    let content = group.messages[msgIndex].content;
+                    let content = group.messages[msgIndex]?.content ?? '';
                     if (delta) {
                         if (content === '') {
                             delta = delta.trimStart();
@@ -1882,25 +1936,42 @@
                         if (content.startsWith(prefixPattern)) {
                             content = content.substring(prefixPattern.length).trimStart();
                         }
-                        group.messages[msgIndex].content = content;
-                        updateStreamingMessage(agent, group.messages[msgIndex].content);
+                        assembled = content;
+                        if (group.messages[msgIndex]) group.messages[msgIndex].content = content;
+                        updateStreamingMessage(agent, content);
                     }
                 }
 
                 removeStreamingIndicator();
+                if (!assembled || assembled.trim() === '') {
+                    // 空响应，不保留占位消息
+                    group.messages.splice(msgIndex, 1);
+                    saveData();
+                    renderMessages();
+                    showToast(`角色 ${agent.name} 未返回内容`, 'info');
+                    return;
+                }
+                // 正常内容，保存渲染
                 saveData();
                 renderMessages();
 
             } catch (error) {
                 removeStreamingIndicator();
                 console.error('Error:', error);
+                // 移除可能预先压入但未形成内容的消息
+                const last = groups.find(g => g.id === group.id)?.messages?.slice(-1)[0];
+                if (last && last.role === 'assistant' && last.agentId === agent.id && (!last.content || last.content.trim() === '')) {
+                    group.messages.pop();
+                }
+                saveData();
+                renderMessages();
                 showToast(`角色 ${agent.name} 响应失败: ${error.message}`, 'error');
             }
         }
 
         function showStreamingMessage(agent) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
+            messageDiv.className = 'message streaming';
             messageDiv.id = 'streamingMessage';
             messageDiv.innerHTML = `
                 <div class="message-avatar" style="background: ${agent.color}">
@@ -1911,9 +1982,8 @@
                         <span class="message-name">${agent.name}</span>
                         <span class="message-time" id="streamingTime">${formatTime(Date.now())}</span>
                     </div>
-                    <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;">
-                        <span class="typing-indicator"><span></span><span></span><span></span></span>
-                    </div>
+                    <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;"
+                        ><span class="typing-indicator"><span></span><span></span><span></span></span></div>
                 </div>
             `;
             el.chatMessages.appendChild(messageDiv);
@@ -1924,6 +1994,10 @@
             const streamingContent = qs('#streamingContent');
             if (streamingContent) {
                 streamingContent.textContent = content;
+                const container = streamingContent.closest('.message');
+                if (container && container.classList.contains('streaming') && content.trim().length > 0) {
+                    container.classList.remove('streaming');
+                }
                 el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
             }
         }
