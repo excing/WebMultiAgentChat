@@ -1119,10 +1119,18 @@
                 <div class="form-group checkbox-inline">
                     <label for="groupAutoReply">
                         <input type="checkbox" id="groupAutoReply" checked>
-                        <span>自动回复（角色轮流发言）</span>
+                        <span>自动回复</span>
                     </label>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="groupAutoReplyModeWrap">
+                    <label>自动回复模式</label>
+                    <select id="groupAutoReplyMode">
+                        <option value="round_robin">轮流固定</option>
+                        <option value="random">随机</option>
+                        <option value="ai_selector">AI 决定（参考上下文）</option>
+                    </select>
+                </div>
+                <div class="form-group" id="groupMaxRoundsWrap">
                     <label>最大自动回复轮数</label>
                     <input type="number" id="groupMaxRounds" min="1" max="20" value="5">
                 </div>
@@ -1181,7 +1189,10 @@
             groupName: qs('#groupName'),
             groupDesc: qs('#groupDesc'),
             groupAutoReply: qs('#groupAutoReply'),
+            groupAutoReplyMode: qs('#groupAutoReplyMode'),
+            groupAutoReplyModeWrap: qs('#groupAutoReplyModeWrap'),
             groupMaxRounds: qs('#groupMaxRounds'),
+            groupMaxRoundsWrap: qs('#groupMaxRoundsWrap'),
             agentCheckboxList: qs('#agentCheckboxList'),
             groupModal: qs('#groupModal'),
             groupModalTitle: qs('#groupModalTitle'),
@@ -1446,6 +1457,8 @@
                 e.preventDefault();
                 saveGroup();
             });
+            el.groupAutoReply.addEventListener('change', updateGroupAutoReplyUI);
+            if (el.groupAutoReplyMode) el.groupAutoReplyMode.addEventListener('change', updateGroupAutoReplyUI);
 
             el.createAgentBtn.addEventListener('click', openAgentModal);
             el.cancelAgentModalBtn.addEventListener('click', closeAgentModal);
@@ -1748,7 +1761,9 @@
             el.groupForm.reset();
             el.groupAutoReply.checked = true;
             el.groupMaxRounds.value = '5';
+            if (el.groupAutoReplyMode) el.groupAutoReplyMode.value = 'round_robin';
             renderAgentCheckboxes();
+            updateGroupAutoReplyUI();
             el.groupModal.classList.add('active');
         }
 
@@ -1769,8 +1784,10 @@
             el.groupName.value = group.name;
             el.groupDesc.value = group.desc || '';
             el.groupAutoReply.checked = group.autoReply;
-            el.groupMaxRounds.value = group.maxRounds;
+            el.groupMaxRounds.value = (group.maxRounds ?? 5);
+            if (el.groupAutoReplyMode) el.groupAutoReplyMode.value = group.autoReplyMode || 'round_robin';
             renderAgentCheckboxes(group.agentIds);
+            updateGroupAutoReplyUI();
             el.groupModal.classList.add('active');
         }
 
@@ -1802,6 +1819,7 @@
                 desc: el.groupDesc.value,
                 agentIds: selectedAgentIds,
                 autoReply: el.groupAutoReply.checked,
+                autoReplyMode: el.groupAutoReplyMode ? el.groupAutoReplyMode.value : 'round_robin',
                 maxRounds: parseInt(el.groupMaxRounds.value),
                 messages: currentEditingGroup !== null ? groups[currentEditingGroup].messages : []
             };
@@ -1860,7 +1878,14 @@
             renderMessages();
 
             if (group.autoReply) {
-                await startGroupChat(group);
+                const mode = group.autoReplyMode || 'round_robin';
+                if (mode === 'round_robin') {
+                    await startGroupChatRoundRobin(group);
+                } else if (mode === 'random') {
+                    await startGroupChatRandom(group);
+                } else {
+                    await startGroupChatAISelector(group);
+                }
             } else {
                 const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
                 if (groupAgents.length > 0) {
@@ -1869,9 +1894,9 @@
             }
         }
 
-        async function startGroupChat(group) {
+        async function startGroupChatRoundRobin(group) {
             let rounds = 0;
-            const maxRounds = group.maxRounds;
+            const maxRounds = group.maxRounds || 0;
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
 
             while (rounds < maxRounds && groupAgents.length > 0) {
@@ -1884,6 +1909,110 @@
                 if (rounds < maxRounds) {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
+            }
+        }
+
+        async function startGroupChatRandom(group) {
+            const maxRounds = group.maxRounds || 0;
+            const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+            if (groupAgents.length === 0) return;
+            // 随机决定本轮会进行的回复次数（上限为 maxRounds，至少 1 次）
+            const totalRounds = Math.max(1, Math.floor(Math.random() * Math.max(1, maxRounds)) + 1);
+            let lastAgentId = null;
+            for (let i = 0; i < totalRounds; i++) {
+                let candidate;
+                // 尽量避免连续同一角色
+                const pool = groupAgents.filter(a => a.id !== lastAgentId);
+                if (pool.length === 0) {
+                    candidate = groupAgents[Math.floor(Math.random() * groupAgents.length)];
+                } else {
+                    candidate = pool[Math.floor(Math.random() * pool.length)];
+                }
+                await getAgentResponse(group, candidate);
+                lastAgentId = candidate.id;
+                if (i < totalRounds - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        async function startGroupChatAISelector(group) {
+            const candidates = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+            if (candidates.length === 0) return;
+            const MAX_STEPS = Math.max(1, group.maxRounds || 20); // 安全上限由用户配置决定
+            for (let step = 0; step < MAX_STEPS; step++) {
+                const next = await selectNextAgentByAI(group, candidates);
+                if (!next || next === 'STOP') {
+                    addSystemMessage(group, 'AI 决定结束对话', 'info');
+                    break;
+                }
+                addSystemMessage(group, `AI 选择由 ${next.name} 回复`, 'info');
+                await getAgentResponse(group, next);
+                if (step < MAX_STEPS - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        async function selectNextAgentByAI(group, candidates) {
+            try {
+                if (!globalSettings.apiKey || !globalSettings.baseUrl) {
+                    showToast('请先在用户设置中配置 API Key 和 Base URL', 'warning');
+                    return null;
+                }
+                const client = await getOpenAIClient(globalSettings);
+                const candidateList = candidates.map(a => ({ name: a.name, role: a.role || '' }));
+                const recent = (group.messages || []).slice(-20).filter(m => m.role !== 'system');
+                const history = recent.map(m => {
+                    if (m.role === 'user') return { role: 'user', content: `[${globalSettings.userName}]: ${m.content}` };
+                    const msgAgent = agents.find(a => a.id === m.agentId);
+                    const name = msgAgent ? msgAgent.name : '未知';
+                    return { role: 'user', content: `[${name}]: ${m.content}` };
+                });
+                const sys = {
+                    role: 'system',
+                    content: `你是群聊的主持与调度者。请根据最近对话历史，从候选人中选择下一位发言者，或决定结束。
+严格遵循输出格式，只能输出严格 JSON（不包含多余文本/解释/代码块标记）：{"next":"<候选名称>"} 或 {"next":"STOP"}。
+候选人列表（仅可从这些名称中选择）：${JSON.stringify(candidateList)}。`
+                };
+                const resp = await client.chat.completions.create({
+                    model: globalSettings.model || 'gpt-3.5-turbo',
+                    temperature: 0.2,
+                    max_tokens: 60,
+                    messages: [sys, ...history]
+                });
+                const textRaw = resp.choices?.[0]?.message?.content || '';
+                const text = textRaw.trim();
+                let jsonStr = text;
+                if (!jsonStr.startsWith('{')) {
+                    const first = text.indexOf('{');
+                    const last = text.lastIndexOf('}');
+                    if (first !== -1 && last !== -1 && last > first) {
+                        jsonStr = text.substring(first, last + 1);
+                    }
+                }
+                let obj;
+                try { obj = JSON.parse(jsonStr); } catch { return null; }
+                const nextName = obj && typeof obj.next === 'string' ? obj.next : null;
+                if (nextName === 'STOP') return 'STOP';
+                const found = candidates.find(a => a.name === nextName);
+                return found || null;
+            } catch (e) {
+                console.error('AI 选择器失败:', e);
+                addSystemMessage(group, 'AI 选择器失败：' + (e.message || '未知错误'), 'warning');
+                return null;
+            }
+        }
+
+        function updateGroupAutoReplyUI() {
+            const enabled = el.groupAutoReply?.checked;
+            if (el.groupAutoReplyModeWrap) {
+                el.groupAutoReplyModeWrap.style.display = enabled ? '' : 'none';
+            }
+            const mode = el.groupAutoReplyMode ? el.groupAutoReplyMode.value : 'round_robin';
+            if (el.groupMaxRoundsWrap) {
+                const showRounds = enabled; // 所有模式下均显示，作为安全上限
+                el.groupMaxRoundsWrap.style.display = showRounds ? '' : 'none';
             }
         }
 
