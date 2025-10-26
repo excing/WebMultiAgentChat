@@ -1410,6 +1410,18 @@
                 el.sidebarOverlay.addEventListener('click', closeMobileSidebars);
             }
 
+            // 通用：点击模态框空白区域关闭（适用于所有 .modal.active）
+            document.addEventListener('click', (ev) => {
+                const actives = qsa('.modal.active');
+                if (!actives.length) return;
+                const top = actives[actives.length - 1];
+                if (!top.contains(ev.target)) return; // 点击不在该模态内，忽略
+                const content = top.querySelector('.modal-content');
+                if (content && !content.contains(ev.target)) {
+                    top.classList.remove('active');
+                }
+            });
+
             document.addEventListener('keydown', handleGlobalKeydown);
             window.addEventListener('resize', updateMobileSidebarState);
         }
@@ -1986,8 +1998,22 @@
 
         function handleGlobalKeydown(e) {
             if (e.key === 'Escape') {
+                if (closeTopModal()) {
+                    e.preventDefault();
+                    return;
+                }
                 closeMobileSidebars();
             }
+        }
+
+        function closeTopModal() {
+            const actives = qsa('.modal.active');
+            if (actives.length > 0) {
+                const top = actives[actives.length - 1];
+                top.classList.remove('active');
+                return true;
+            }
+            return false;
         }
 
         function generateId() {
