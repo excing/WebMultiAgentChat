@@ -152,6 +152,17 @@
             font-weight: 500;
         }
 
+        .btn-icon {
+            display: inline-block;
+            font-size: 16px;
+            margin-right: 8px;
+            line-height: 1;
+        }
+
+        .btn-text {
+            display: inline-block;
+        }
+
         .btn-primary {
             background: #667eea;
             color: white;
@@ -641,25 +652,32 @@
             }
 
             .chat-header {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 12px;
-                padding: 16px 18px;
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 14px;
+                flex-wrap: nowrap;
             }
 
             .chat-header-left {
-                width: 100%;
+                flex: 1 1 auto;
+                min-width: 0;
             }
 
             .chat-header-actions {
-                width: 100%;
-                gap: 8px;
+                flex: 0 0 auto;
+                display: flex;
+                gap: 6px;
+                white-space: nowrap;
             }
 
             .chat-header-actions .btn,
             .chat-header-actions .sidebar-toggle {
-                flex: 1 1 120px;
+                flex: 0 0 auto;
             }
+
+            .chat-header-actions .btn .btn-text { display: none; }
+            .chat-header-actions .btn .btn-icon { margin-right: 0; }
 
             .chat-header-info h2 {
                 font-size: 18px;
@@ -714,6 +732,7 @@
             .chat-header {
                 padding: 12px;
                 gap: 10px;
+                flex-wrap: nowrap;
             }
 
             .chat-messages {
@@ -753,7 +772,15 @@
 
             .chat-header-actions .btn,
             .chat-header-actions .sidebar-toggle {
-                flex: 1 1 100%;
+                flex: 0 0 auto;
+            }
+
+            .chat-header-actions .btn .btn-text {
+                display: none;
+            }
+
+            .chat-header-actions .btn .btn-icon {
+                margin-right: 0;
             }
 
             .chat-header-info h2 {
@@ -896,9 +923,15 @@
                     </div>
                 </div>
                 <div class="chat-header-actions">
-                    <button class="btn btn-secondary" id="editGroupBtn" disabled>编辑群聊</button>
-                    <button class="btn btn-secondary" id="clearChatBtn" disabled>清空对话</button>
-                    <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn">⋮</button>
+                    <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>
+                        <span class="btn-icon" aria-hidden="true">✎</span>
+                        <span class="btn-text">编辑群聊</span>
+                    </button>
+                    <button class="btn btn-secondary" id="clearChatBtn" aria-label="清空对话" disabled>
+                        <span class="btn-icon" aria-hidden="true">🧹</span>
+                        <span class="btn-text">清空对话</span>
+                    </button>
+                    <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn" aria-label="打开右侧栏">⋮</button>
                 </div>
             </div>
             <div class="chat-messages" id="chatMessages">
