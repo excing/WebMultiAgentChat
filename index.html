@@ -1664,7 +1664,7 @@
                     } else {
                         const msgAgent = agents.find(a => a.id === msg.agentId);
                         return { 
-                            role: 'user', 
+                            role: 'assistant', 
                             content: `[${msgAgent ? msgAgent.name : '未知'}]: ${msg.content}` 
                         };
                     }
@@ -1702,8 +1702,15 @@
                 });
 
                 for await (const chunk of stream) {
-                    const delta = chunk.choices[0]?.delta?.content;
+                    let delta = chunk.choices[0]?.delta?.content;
                     if (delta) {
+                        // 清理第一次接收到的消息中的前缀（如果AI返回了[角色名]:格式）
+                        if (group.messages[msgIndex].content === '') {
+                            const prefixPattern = `[${agent.name}]:`;
+                            if (delta.startsWith(prefixPattern)) {
+                                delta = delta.substring(prefixPattern.length).trimStart();
+                            }
+                        }
                         group.messages[msgIndex].content += delta;
                         updateStreamingMessage(agent, group.messages[msgIndex].content);
                     }
