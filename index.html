@@ -1714,15 +1714,18 @@
 
                 for await (const chunk of stream) {
                     let delta = chunk.choices[0]?.delta?.content;
+                    let content = group.messages[msgIndex].content;
                     if (delta) {
-                        // 清理第一次接收到的消息中的前缀（如果AI返回了[角色名]:格式）
-                        if (group.messages[msgIndex].content === '') {
-                            const prefixPattern = `[${agent.name}]:`;
-                            if (delta.startsWith(prefixPattern)) {
-                                delta = delta.substring(prefixPattern.length).trimStart();
-                            }
+                        if (content === '') {
+                            delta = delta.trimStart();
                         }
-                        group.messages[msgIndex].content += delta;
+                        content += delta;
+                        // 清理接收到的消息中的前缀（如果AI返回了[角色名]:格式）
+                        const prefixPattern = `[${agent.name}]:`;
+                        if (content.startsWith(prefixPattern)) {
+                            content = content.substring(prefixPattern.length).trimStart();
+                        }
+                        group.messages[msgIndex].content = content;
                         updateStreamingMessage(agent, group.messages[msgIndex].content);
                     }
                 }
