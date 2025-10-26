@@ -1347,6 +1347,13 @@
                 select.innerHTML = options;
                 if (currentValue) {
                     select.value = currentValue;
+                    if (select.value !== currentValue) {
+                        const opt = document.createElement('option');
+                        opt.value = currentValue;
+                        opt.textContent = currentValue;
+                        select.appendChild(opt);
+                        select.value = currentValue;
+                    }
                 }
             });
         }
@@ -1463,7 +1470,7 @@
             }
 
             el.agentList.innerHTML = agents.map((agent, index) => {
-                const config = agent.useGlobal ? globalSettings : agent;
+                const config = resolveAgentConfig(agent, globalSettings);
                 return `
                     <div class="item">
                         <div class="item-name">
@@ -1564,6 +1571,7 @@
             el.agentUseGlobal.checked = true;
             toggleAgentConfig();
             el.agentModel.value = globalSettings.model;
+            setAgentConfigPlaceholders();
             el.agentModal.classList.add('active');
         }
 
@@ -1579,6 +1587,7 @@
             } else {
                 el.agentConfigSection.classList.remove('hidden');
             }
+            setAgentConfigPlaceholders();
         }
 
         function editAgent(index) {
@@ -1599,6 +1608,7 @@
                 el.agentMaxTokens.value = agent.maxTokens || 2000;
             }
             el.agentModel.value = agent.model || globalSettings.model;
+            setAgentConfigPlaceholders();
             el.agentModal.classList.add('active');
         }
 
@@ -1616,10 +1626,10 @@
             };
 
             if (!useGlobal) {
-                agent.baseUrl = el.agentBaseUrl.value;
-                agent.apiKey = el.agentApiKey.value;
-                agent.temperature = parseFloat(el.agentTemperature.value);
-                agent.maxTokens = parseInt(el.agentMaxTokens.value);
+                if (el.agentBaseUrl.value) agent.baseUrl = el.agentBaseUrl.value;
+                if (el.agentApiKey.value) agent.apiKey = el.agentApiKey.value;
+                if (el.agentTemperature.value !== '') agent.temperature = parseFloat(el.agentTemperature.value);
+                if (el.agentMaxTokens.value !== '') agent.maxTokens = parseInt(el.agentMaxTokens.value);
             }
 
             if (currentEditingAgent !== null) {
@@ -1803,7 +1813,7 @@
 
         async function getAgentResponse(group, agent) {
             try {
-                const config = agent.useGlobal !== false ? globalSettings : agent;
+                const config = resolveAgentConfig(agent, globalSettings);
                 
                 const conversationHistory = group.messages.map(msg => {
                     if (msg.role === 'user') {
@@ -1901,7 +1911,9 @@
                         <span class="message-name">${agent.name}</span>
                         <span class="message-time" id="streamingTime">${formatTime(Date.now())}</span>
                     </div>
-                    <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;"></div>
+                    <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;">
+                        <span class="typing-indicator"><span></span><span></span><span></span></span>
+                    </div>
                 </div>
             `;
             el.chatMessages.appendChild(messageDiv);
@@ -1948,6 +1960,45 @@
         function generateRandomColor() {
             const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#30cfd0', '#a8edea', '#ff6b6b', '#4ecdc4'];
             return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // 合并 Agent 与全局配置，未填写则回退到全局
+        function resolveAgentConfig(agent, global) {
+            const useGlobal = agent.useGlobal !== false;
+            const base = useGlobal ? {} : agent;
+            return {
+                baseUrl: useGlobal ? global.baseUrl : (base.baseUrl || global.baseUrl),
+                apiKey: useGlobal ? global.apiKey : (base.apiKey || global.apiKey),
+                model: useGlobal ? (agent.model || global.model) : (base.model || global.model),
+                temperature: useGlobal ? (agent.temperature ?? 0.7) : (base.temperature ?? 0.7),
+                maxTokens: useGlobal ? (agent.maxTokens ?? 2000) : (base.maxTokens ?? 2000)
+            };
+        }
+
+        // 设置 Agent 配置输入的占位符/默认选项
+        function setAgentConfigPlaceholders() {
+            if (el.agentBaseUrl) {
+                el.agentBaseUrl.placeholder = globalSettings.baseUrl || 'https://api.openai.com/v1';
+            }
+            if (el.agentApiKey) {
+                el.agentApiKey.placeholder = '留空以使用全局 API Key';
+            }
+            if (el.agentModel) {
+                if (!el.agentModel.value) {
+                    el.agentModel.value = globalSettings.model || '';
+                }
+                const desired = el.agentModel.value || (globalSettings.model || '');
+                if (desired) {
+                    const has = Array.from(el.agentModel.options).some(o => o.value === desired);
+                    if (!has) {
+                        const opt = document.createElement('option');
+                        opt.value = desired;
+                        opt.textContent = desired;
+                        el.agentModel.appendChild(opt);
+                    }
+                    el.agentModel.value = desired;
+                }
+            }
         }
 
         function isMobileView() {
