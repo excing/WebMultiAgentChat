@@ -14,7 +14,7 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
+            height: 100dvh;
             overflow: hidden;
         }
 
@@ -35,7 +35,7 @@
 
         .container {
             display: flex;
-            height: 100vh;
+            height: 100dvh;
             max-width: 1800px;
             margin: 0 auto;
             gap: 20px;
@@ -147,7 +147,7 @@
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             transition: all 0.2s;
             font-weight: 500;
         }
@@ -627,7 +627,7 @@
 
             .sidebar, .sidebar-right {
                 position: fixed;
-                height: calc(100vh - 60px);
+                height: calc(100dvh - 60px);
                 border-radius: 0;
                 z-index: 1000;
                 top: 60px;
@@ -669,6 +669,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                padding: 8px 12px;
             }
 
             .chat-header {
@@ -694,6 +695,7 @@
             .chat-header-actions .btn,
             .chat-header-actions .sidebar-toggle {
                 flex: 0 0 auto;
+                padding: 8px 12px;
             }
 
             .chat-header-actions .btn .btn-text { display: none; }
@@ -709,7 +711,7 @@
 
             .btn {
                 padding: 6px 12px;
-                font-size: 12px;
+                font-size: 14px;
             }
 
             .chat-input {
@@ -745,7 +747,7 @@
 
             .sidebar, .sidebar-right {
                 width: 100%;
-                height: calc(100vh - 50px);
+                height: calc(100dvh - 50px);
                 top: 50px;
             }
 
@@ -783,11 +785,12 @@
                 padding: 6px 8px;
                 font-size: 16px;
                 margin-right: 0;
+                padding: 8px 12px;
             }
 
             .btn {
                 padding: 6px 10px;
-                font-size: 11px;
+                font-size: 16px;
             }
 
             .chat-header-actions .btn,
