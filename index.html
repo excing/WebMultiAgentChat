@@ -1014,6 +1014,19 @@
                     </div>
                 </div>
 
+                <div class="section-divider"></div>
+                <h3>系统提示显示</h3>
+                <div class="form-group">
+                    <label>系统提示显示级别</label>
+                    <select id="systemMsgLevel">
+                        <option value="all">全部</option>
+                        <option value="info">信息 (info)</option>
+                        <option value="success">成功 (success)</option>
+                        <option value="warning">警告 (warning)</option>
+                        <option value="error">错误 (error)</option>
+                    </select>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelUserSettingsBtn">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
@@ -1175,7 +1188,8 @@
             baseUrl: 'https://api.openai.com/v1',
             apiKey: '',
             model: 'gpt-3.5-turbo',
-            models: []
+            models: [],
+            systemMsgLevel: 'all'
         };
 
         let openaiClients = {};
@@ -1191,6 +1205,7 @@
             refreshModelsBtn: qs('#refreshModelsBtn'),
             agentRefreshModelsBtn: qs('#agentRefreshModelsBtn'),
             userSettingsModal: qs('#userSettingsModal'),
+            systemMsgLevel: qs('#systemMsgLevel'),
             
             createGroupBtn: qs('#createGroupBtn'),
             cancelGroupModalBtn: qs('#cancelGroupModalBtn'),
@@ -1289,6 +1304,9 @@
             if (savedAgents) agents = JSON.parse(savedAgents);
             if (savedGroups) groups = JSON.parse(savedGroups);
             if (savedSettings) globalSettings = JSON.parse(savedSettings);
+            if (!globalSettings.systemMsgLevel) {
+                globalSettings.systemMsgLevel = 'all';
+            }
         }
 
         function saveData() {
@@ -1537,6 +1555,9 @@
             el.globalApiKey.value = globalSettings.apiKey;
             el.globalModel.value = globalSettings.model;
             updateModelSelects();
+            if (el.systemMsgLevel) {
+                el.systemMsgLevel.value = globalSettings.systemMsgLevel || 'all';
+            }
             el.userSettingsModal.classList.add('active');
         }
 
@@ -1549,12 +1570,18 @@
             globalSettings.baseUrl = el.globalBaseUrl.value;
             globalSettings.apiKey = el.globalApiKey.value;
             globalSettings.model = el.globalModel.value;
+            if (el.systemMsgLevel) {
+                globalSettings.systemMsgLevel = el.systemMsgLevel.value || 'all';
+            }
 
             saveData();
             updateUserDisplay();
             await initOpenAI();
             closeUserSettingsModal();
             showToast('设置已保存', 'success');
+            if (currentGroupId) {
+                renderMessages();
+            }
         }
 
         function renderAgents() {
@@ -1615,6 +1642,8 @@
             el.chatMessages.innerHTML = group.messages.map(msg => {
                 if (msg.role === 'system') {
                     const lvl = msg.level || 'info';
+                    const sel = globalSettings.systemMsgLevel || 'all';
+                    if (sel !== 'all' && lvl !== sel) return '';
                     return `
                         <div class="system-message system-${lvl}">
                             ${escapeHtml(msg.content)}
