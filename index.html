@@ -1291,6 +1291,7 @@
             loadData();
             renderAgents();
             renderGroups();
+            autoEnterLastGroup();
             updateUserDisplay();
             initOpenAI().catch(e => console.error('初始化 OpenAI 客户端失败:', e));
             setupEventListeners();
@@ -1680,6 +1681,9 @@
             
             if (!group) return;
 
+            // 记住上次进入的群聊
+            localStorage.setItem('lastGroupId_v1', groupId);
+
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
             
             el.currentGroupName.textContent = group.name;
@@ -1855,7 +1859,7 @@
                         ${selectedIds.includes(agent.id) ? 'checked' : ''}>
                     <label for="agent_${agent.id}" style="margin-bottom: 0;">
                         <span class="agent-color" style="background: ${agent.color}"></span>
-                        ${agent.name}
+                        ${agent.name} | ${agent.role || 'No Role'}
                     </label>
                 </div>
             `).join('');
@@ -1908,6 +1912,11 @@
                     el.editGroupBtn.disabled = true;
                     el.clearChatBtn.disabled = true;
                     el.chatMessages.innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
+                }
+
+                // 若删除的是记录中的最后一次群聊，清理存档避免下次找不到
+                if (localStorage.getItem('lastGroupId_v1') === groupId) {
+                    localStorage.removeItem('lastGroupId_v1');
                 }
                 
                 saveData();
@@ -2441,6 +2450,16 @@
             }
 
             updateMobileSidebarState();
+        }
+
+        // 启动时尝试自动进入上次退出的群聊
+        function autoEnterLastGroup() {
+            const lastId = localStorage.getItem('lastGroupId_v1');
+            if (!lastId) return;
+            if (!groups || groups.length === 0) return;
+            if (groups.some(g => g.id === lastId)) {
+                selectGroup(lastId);
+            }
         }
 
         init();
