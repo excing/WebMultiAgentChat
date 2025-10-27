@@ -355,6 +355,9 @@
             color: white;
         }
 
+        /* 同一条消息内的分组气泡容器 */
+        .message-bubbles { display: flex; flex-direction: column; gap: 6px; }
+
         .chat-input {
             padding: 20px;
             border-top: 1px solid #e0e0e0;
@@ -1658,6 +1661,9 @@
                 const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
                 const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
                 const name = isUser ? globalSettings.userName : (agent ? agent.name : '未知');
+                const contentHTML = isUser
+                    ? `<div class="message-text">${escapeHtml(msg.content)}</div>`
+                    : renderGroupedBubbles(msg.content);
                 
                 return `
                     <div class="message ${isUser ? 'user' : ''}">
@@ -1669,13 +1675,42 @@
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
                             </div>
-                            <div class="message-text">${escapeHtml(msg.content)}</div>
+                            ${contentHTML}
                         </div>
                     </div>
                 `;
             }).join('');
             
             el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+        }
+
+        // 将一段文本按“空行分段”，代码块 (``` ... ```) 内不拆分
+        function splitIntoParagraphs(text) {
+            const lines = (text || '').replace(/\r\n/g, '\n').split('\n');
+            const out = [];
+            let buf = [];
+            let inFence = false;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('```')) {
+                    inFence = !inFence;
+                    buf.push(line);
+                    continue;
+                }
+                buf.push(line);
+                if (!inFence && trimmed === '') {
+                    out.push(buf.join('\n').trimEnd());
+                    buf = [];
+                }
+            }
+            if (buf.length) out.push(buf.join('\n').trimEnd());
+            return out.filter(p => p.trim() !== '');
+        }
+
+        function renderGroupedBubbles(text) {
+            const paras = splitIntoParagraphs(text);
+            const html = paras.map(p => `<div class="message-text">${escapeHtml(p)}</div>`).join('');
+            return `<div class="message-bubbles">${html || '<div class="message-text"></div>'}</div>`;
         }
 
         function selectGroup(groupId) {
@@ -2171,9 +2206,12 @@
                     .map(a => a.name)
                     .join(', ');
 
+                const role = `请你以你的身份自然地回复对话。禁止项: 禁止在回复里出现你的名字。
+----
+[输出规则] 格式纯净性 (Format Purity): 你的所有回复都必须直接以内容开始。严禁在回复的开头添加任何形式的身份标识、名称或前缀，例如 '[${agent.name}]:'、'${agent.name}:' 或 '[AI]:'。`
                 conversationHistory.unshift({
                     role: 'system',
-                    content: `你是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。请你以你的身份自然地回复对话。`
+                    content: `你的名字是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。` + role
                 });
 
                 const assistantMessage = {
@@ -2205,11 +2243,25 @@
                         }
                         content += delta;
                         // 清理接收到的消息中的前缀（如果AI返回了[角色名]:格式）
-                        const prefixPattern = `[${agent.name}]:`;
-                        if (content.startsWith(prefixPattern)) {
-                            content = content.substring(prefixPattern.length).trimStart();
-                        }
-                        assembled = content;
+                        // 1. 构建正则表达式
+                        //    ^           - 匹配字符串的开头
+                        //    \[         - 匹配字面量 '['
+                        //    ${escapedName} - 插入转义后的 agent name
+                        //    \]         - 匹配字面量 ']'
+                        //    [:：]       - 匹配一个字符类：半角冒号 : 或 全角冒号 ：
+                        //    \s* - 匹配冒号后面的零个或多个空白字符（包括空格、制表符等）
+                        // const prefixRegex = new RegExp(`^\\[${agent.name}\\][:：]\\s*`);
+                        // 2. 使用 while 循环持续清理前缀
+                        //    只要 content 仍然以前缀开头，就不断替换掉它
+                        //    这可以处理 [Bot]: Hello 和 [Bot]: [Bot]: Hello 两种情况
+                        // while (prefixRegex.test(content)) {
+                        //     content = content.replace(prefixRegex, '');
+                        // }
+                        // const prefixPattern = `[${agent.name}]:`;
+                        // if (content.startsWith(prefixPattern)) {
+                        //     content = content.substring(prefixPattern.length).trimStart();
+                        // }
+                        assembled = content.trim();
                         if (group.messages[msgIndex]) group.messages[msgIndex].content = content;
                         updateStreamingMessage(agent, content);
                     }
@@ -2264,8 +2316,11 @@
                         <span class="message-name">${agent.name}</span>
                         <span class="message-time" id="streamingTime">${formatTime(Date.now())}</span>
                     </div>
-                    <div class="message-text" id="streamingContent" style="white-space: pre-wrap; word-break: break-word;"
-                        ><span class="typing-indicator"><span></span><span></span><span></span></span></div>
+                    <div class="message-bubbles" id="streamingBubbles">
+                        <div class="message-text" id="streamingBubble">
+                            <span class="typing-indicator"><span></span><span></span><span></span></span>
+                        </div>
+                    </div>
                 </div>
             `;
             el.chatMessages.appendChild(messageDiv);
@@ -2273,6 +2328,22 @@
         }
 
         function updateStreamingMessage(agent, content) {
+            const wrap = qs('#streamingBubbles');
+            if (wrap) {
+                const paras = splitIntoParagraphs(content);
+                if (paras.length === 0) {
+                    wrap.innerHTML = `<div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div>`;
+                } else {
+                    wrap.innerHTML = paras.map(p => `<div class="message-text">${escapeHtml(p)}</div>`).join('');
+                }
+                const container = wrap.closest('.message');
+                if (container && container.classList.contains('streaming') && content.trim().length > 0) {
+                    container.classList.remove('streaming');
+                }
+                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+                return;
+            }
+            // 兼容旧结构
             const streamingContent = qs('#streamingContent');
             if (streamingContent) {
                 streamingContent.textContent = content;
