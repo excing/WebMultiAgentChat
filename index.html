@@ -995,7 +995,7 @@
         .chat-header-subtitle { color: color-mix(in oklab, var(--text) 60%, transparent); }
 
         .chat-messages { background: var(--muted); }
-        .message-text { background: var(--bubble-bg-ai); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); line-height: 1.6; }
+        .message-text { background: var(--bubble-bg-ai); color: var(--text); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); line-height: 1.6; }
         .message.user .message-text { background: var(--bubble-bg-user); color: var(--bubble-fg-user); border-color: color-mix(in oklab, var(--brand) 35%, var(--border)); }
         .message-bubbles { gap: 8px; }
         .message-avatar { box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
@@ -1023,6 +1023,63 @@
         .message-text code { background: color-mix(in oklab, var(--muted) 60%, transparent); padding: 0 4px; border-radius: 6px; }
 
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+        /* ===== Manual theme override (data-theme) + contrast fixes ===== */
+        :root[data-theme="light"] {
+            --app-bg: hsl(220 14% 97%);
+            --panel: hsl(0 0% 100%);
+            --text: hsl(224 71% 4%);
+            --muted: hsl(220 14% 96%);
+            --border: hsl(220 13% 91%);
+            --control-bg: hsl(0 0% 100%);
+            --bubble-bg-ai: var(--panel);
+            --bubble-bg-user: color-mix(in oklab, var(--brand) 18%, var(--panel));
+            --bubble-fg-user: var(--text);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+            --shadow-md: 0 6px 16px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+        }
+        :root[data-theme="dark"] {
+            --app-bg: hsl(224 14% 10%);
+            --panel: hsl(224 14% 12%);
+            --text: hsl(0 0% 98%);
+            --muted: hsl(224 14% 16%);
+            --border: hsl(224 14% 22%);
+            --control-bg: hsl(224 14% 16%);
+            --bubble-bg-ai: hsl(224 14% 16%);
+            --bubble-bg-user: color-mix(in oklab, var(--brand) 26%, var(--panel));
+            --bubble-fg-user: var(--text);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
+            --shadow-md: 0 6px 16px rgba(0,0,0,0.55);
+            --shadow-lg: 0 12px 32px rgba(0,0,0,0.6);
+        }
+
+        /* Contrast-safe text and surfaces */
+        h2, h3, .user-info, .item-name, .message-name { color: var(--text); }
+        .chat-header-info h2 { color: var(--text); }
+        .modal-header h3 { color: var(--text); }
+        .form-group label { color: color-mix(in oklab, var(--text) 75%, transparent); }
+        .item-desc, .empty-state { color: color-mix(in oklab, var(--text) 60%, transparent); }
+        .message-time, .toast-close { color: color-mix(in oklab, var(--text) 50%, transparent); }
+        .modal-content { background: var(--panel); border: 1px solid var(--border); }
+        .section-divider { background: var(--border); }
+        .typing-indicator span { background: color-mix(in oklab, var(--text) 50%, transparent); }
+
+        /* Header buttons fixes (override older specific styles) */
+        .chat-header-actions .sidebar-toggle {
+            background: var(--panel);
+            color: var(--text);
+            border-color: var(--border);
+        }
+        .chat-header-actions .sidebar-toggle:hover { background: var(--muted); }
+        .chat-header-left .sidebar-toggle {
+            background: var(--panel);
+            color: var(--text);
+            border-color: var(--border);
+        }
+        .chat-header-left .sidebar-toggle:hover { background: var(--muted); }
+        .chat-header-actions .btn.btn-secondary { background: var(--panel); color: var(--text); border-color: var(--border); }
+        .chat-header-actions .btn.btn-secondary:hover { background: var(--muted); }
     </style>
 </head>
 <body>
@@ -1058,6 +1115,10 @@
                     <button class="btn btn-secondary" id="clearChatBtn" aria-label="清空对话" disabled>
                         <span class="btn-icon" aria-hidden="true">🧹</span>
                         <span class="btn-text">清空对话</span>
+                    </button>
+                    <button class="btn btn-secondary" id="themeToggleBtn" aria-label="切换主题">
+                        <span class="btn-icon" aria-hidden="true">🌙</span>
+                        <span class="btn-text">深色</span>
                     </button>
                     <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn" aria-label="打开右侧栏">⋮</button>
                 </div>
@@ -1352,6 +1413,7 @@
             agentList: qs('#agentList'),
             
             toggleSidebarBtn: qs('#toggleSidebarBtn'),
+            themeToggleBtn: qs('#themeToggleBtn'),
             toggleRightSidebarBtn: qs('#toggleRightSidebarBtn'),
             editGroupBtn: qs('#editGroupBtn'),
             clearChatBtn: qs('#clearChatBtn'),
@@ -1397,6 +1459,7 @@
 
         function init() {
             loadData();
+            initTheme();
             renderAgents();
             renderGroups();
             autoEnterLastGroup();
@@ -1422,6 +1485,37 @@
             localStorage.setItem('agents_v3', JSON.stringify(agents));
             localStorage.setItem('groups_v3', JSON.stringify(groups));
             localStorage.setItem('globalSettings_v3', JSON.stringify(globalSettings));
+        }
+
+        // ==== Theme control ====
+        function initTheme() {
+            try {
+                const stored = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = stored || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                updateThemeToggleUI(theme);
+            } catch (_) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', current);
+            try { localStorage.setItem('theme', current); } catch (_) {}
+            updateThemeToggleUI(current);
+        }
+
+        function updateThemeToggleUI(theme) {
+            const isDark = (theme || document.documentElement.getAttribute('data-theme')) === 'dark';
+            if (el.themeToggleBtn) {
+                const iconEl = el.themeToggleBtn.querySelector('.btn-icon');
+                const textEl = el.themeToggleBtn.querySelector('.btn-text');
+                if (iconEl) iconEl.textContent = isDark ? '☀️' : '🌙';
+                if (textEl) textEl.textContent = isDark ? '浅色' : '深色';
+                el.themeToggleBtn.setAttribute('aria-label', isDark ? '切换到浅色模式' : '切换到深色模式');
+            }
         }
 
         async function initOpenAI() {
@@ -1613,6 +1707,7 @@
 
             el.toggleSidebarBtn.addEventListener('click', toggleSidebar);
             el.toggleRightSidebarBtn.addEventListener('click', toggleRightSidebar);
+            if (el.themeToggleBtn) el.themeToggleBtn.addEventListener('click', toggleTheme);
             el.editGroupBtn.addEventListener('click', editCurrentGroup);
             el.clearChatBtn.addEventListener('click', clearChat);
             el.sendBtn.addEventListener('click', sendMessage);
