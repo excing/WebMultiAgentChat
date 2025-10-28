@@ -1015,6 +1015,7 @@
         .config-section { background: var(--muted); border-color: var(--border); }
 
         .toast { background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-md); }
+        .toast-content { color: var(--text); }
         .toast-close { color: color-mix(in oklab, var(--text) 50%, transparent); }
         .toast-close:hover { color: var(--text); }
 
@@ -1116,10 +1117,6 @@
                         <span class="btn-icon" aria-hidden="true">🧹</span>
                         <span class="btn-text">清空对话</span>
                     </button>
-                    <button class="btn btn-secondary" id="themeToggleBtn" aria-label="切换主题">
-                        <span class="btn-icon" aria-hidden="true">🌙</span>
-                        <span class="btn-text">深色</span>
-                    </button>
                     <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn" aria-label="打开右侧栏">⋮</button>
                 </div>
             </div>
@@ -1193,6 +1190,17 @@
                         <option value="success">成功 (success)</option>
                         <option value="warning">警告 (warning)</option>
                         <option value="error">错误 (error)</option>
+                    </select>
+                </div>
+
+                <div class="section-divider"></div>
+                <h3>外观</h3>
+                <div class="form-group">
+                    <label>主题模式</label>
+                    <select id="themeMode">
+                        <option value="system">跟随系统</option>
+                        <option value="light">浅色</option>
+                        <option value="dark">深色</option>
                     </select>
                 </div>
 
@@ -1358,7 +1366,8 @@
             apiKey: '',
             model: 'gpt-3.5-turbo',
             models: [],
-            systemMsgLevel: 'all'
+            systemMsgLevel: 'all',
+            themeMode: 'system'
         };
 
         let openaiClients = {};
@@ -1375,6 +1384,7 @@
             agentRefreshModelsBtn: qs('#agentRefreshModelsBtn'),
             userSettingsModal: qs('#userSettingsModal'),
             systemMsgLevel: qs('#systemMsgLevel'),
+            themeMode: qs('#themeMode'),
             
             createGroupBtn: qs('#createGroupBtn'),
             cancelGroupModalBtn: qs('#cancelGroupModalBtn'),
@@ -1489,32 +1499,25 @@
 
         // ==== Theme control ====
         function initTheme() {
+            // 迁移旧的 localStorage 'theme'（若存在）到全局设置
             try {
-                const stored = localStorage.getItem('theme');
-                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const theme = stored || (prefersDark ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-theme', theme);
-                updateThemeToggleUI(theme);
-            } catch (_) {
-                document.documentElement.setAttribute('data-theme', 'light');
-            }
+                const legacy = localStorage.getItem('theme');
+                if (!globalSettings.themeMode && legacy) {
+                    globalSettings.themeMode = legacy === 'dark' ? 'dark' : 'light';
+                    saveData();
+                }
+            } catch (_) {}
+
+            const mode = globalSettings.themeMode || 'system';
+            applyTheme(mode);
         }
 
-        function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', current);
-            try { localStorage.setItem('theme', current); } catch (_) {}
-            updateThemeToggleUI(current);
-        }
-
-        function updateThemeToggleUI(theme) {
-            const isDark = (theme || document.documentElement.getAttribute('data-theme')) === 'dark';
-            if (el.themeToggleBtn) {
-                const iconEl = el.themeToggleBtn.querySelector('.btn-icon');
-                const textEl = el.themeToggleBtn.querySelector('.btn-text');
-                if (iconEl) iconEl.textContent = isDark ? '☀️' : '🌙';
-                if (textEl) textEl.textContent = isDark ? '浅色' : '深色';
-                el.themeToggleBtn.setAttribute('aria-label', isDark ? '切换到浅色模式' : '切换到深色模式');
+        function applyTheme(mode) {
+            const root = document.documentElement;
+            if (mode === 'system') {
+                root.removeAttribute('data-theme');
+            } else if (mode === 'light' || mode === 'dark') {
+                root.setAttribute('data-theme', mode);
             }
         }
 
@@ -1707,7 +1710,6 @@
 
             el.toggleSidebarBtn.addEventListener('click', toggleSidebar);
             el.toggleRightSidebarBtn.addEventListener('click', toggleRightSidebar);
-            if (el.themeToggleBtn) el.themeToggleBtn.addEventListener('click', toggleTheme);
             el.editGroupBtn.addEventListener('click', editCurrentGroup);
             el.clearChatBtn.addEventListener('click', clearChat);
             el.sendBtn.addEventListener('click', sendMessage);
@@ -1762,6 +1764,9 @@
             if (el.systemMsgLevel) {
                 el.systemMsgLevel.value = globalSettings.systemMsgLevel || 'all';
             }
+            if (el.themeMode) {
+                el.themeMode.value = globalSettings.themeMode || 'system';
+            }
             el.userSettingsModal.classList.add('active');
         }
 
@@ -1777,6 +1782,9 @@
             if (el.systemMsgLevel) {
                 globalSettings.systemMsgLevel = el.systemMsgLevel.value || 'all';
             }
+            if (el.themeMode) {
+                globalSettings.themeMode = el.themeMode.value || 'system';
+            }
 
             saveData();
             updateUserDisplay();
@@ -1786,6 +1794,9 @@
             if (currentGroupId) {
                 renderMessages();
             }
+
+            // 应用主题（包括跟随系统）
+            applyTheme(globalSettings.themeMode || 'system');
         }
 
         function renderAgents() {
