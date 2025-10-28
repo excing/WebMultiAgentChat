@@ -1437,11 +1437,11 @@
             sidebarOverlay: qs('#sidebarOverlay')
         };
 
-        function showToast(message, type = 'info', duration = 3000) {
+        function showToast(message, type = 'info', duration = 3000, action) {
             const container = el.toastContainer;
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            
+
             const icons = {
                 success: '✓',
                 error: '✕',
@@ -1449,21 +1449,38 @@
                 warning: '⚠'
             };
 
+            const hasAction = action && typeof action.onClick === 'function' && action.text;
+            const actionHtml = hasAction ? `<button class="btn btn-secondary" data-toast-action="action">${action.text}</button>` : '';
+
             toast.innerHTML = `
-                <span class="toast-icon">${icons[type]}</span>
+                <span class="toast-icon">${icons[type] || 'ℹ'}</span>
                 <div class="toast-content">${message}</div>
-                <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
+                ${actionHtml}
+                <button class="toast-close" aria-label="关闭" onclick="this.parentElement.remove()">✕</button>
             `;
 
             container.appendChild(toast);
 
+            let timerId = null;
             if (duration > 0) {
-                setTimeout(() => {
+                timerId = setTimeout(() => {
                     if (toast.parentElement) {
                         toast.classList.add('removing');
                         setTimeout(() => toast.remove(), 300);
                     }
                 }, duration);
+            }
+
+            if (hasAction) {
+                const btn = toast.querySelector('[data-toast-action="action"]');
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        try { action.onClick(); } finally {
+                            if (timerId) clearTimeout(timerId);
+                            if (toast.parentElement) toast.remove();
+                        }
+                    });
+                }
             }
         }
 
@@ -2027,19 +2044,43 @@
         }
 
         function deleteAgent(index) {
-            if (confirm('确定要删除这个角色吗？关联的群聊可能会受影响。')) {
-                const agentId = agents[index].id;
-                agents.splice(index, 1);
-                
+            const removed = agents[index];
+            if (!removed) return;
+            const agentId = removed.id;
+            const originalIndex = index;
+            const affectedGroups = groups
+                .filter(g => Array.isArray(g.agentIds) && g.agentIds.includes(agentId))
+                .map(g => g.id);
+
+            agents.splice(index, 1);
+            groups.forEach(group => {
+                group.agentIds = (group.agentIds || []).filter(id => id !== agentId);
+            });
+
+            saveData();
+            renderAgents();
+            renderGroups();
+            if (currentGroupId) renderMessages();
+
+            let undone = false;
+            const undo = () => {
+                if (undone) return; undone = true;
+                const insertAt = Math.min(originalIndex, agents.length);
+                agents.splice(insertAt, 0, removed);
                 groups.forEach(group => {
-                    group.agentIds = group.agentIds.filter(id => id !== agentId);
+                    if (affectedGroups.includes(group.id)) {
+                        if (!group.agentIds) group.agentIds = [];
+                        if (!group.agentIds.includes(agentId)) group.agentIds.push(agentId);
+                    }
                 });
-                
                 saveData();
                 renderAgents();
                 renderGroups();
                 if (currentGroupId) renderMessages();
-            }
+                showToast('已撤销删除', 'info', 3000);
+            };
+
+            showToast('删除成功', 'success', 6000, { text: '撤销', onClick: undo });
         }
 
         function openGroupModal() {
@@ -2145,29 +2186,51 @@
         }
 
         function deleteGroup(index) {
-            if (confirm('确定要删除这个群聊吗？所有对话记录将被删除。')) {
-                const groupId = groups[index].id;
-                groups.splice(index, 1);
-                
-                if (currentGroupId === groupId) {
-                    currentGroupId = null;
-                    el.currentGroupName.textContent = '选择一个群聊开始对话';
-                    el.groupAgents.textContent = '';
-                    el.userInput.disabled = true;
-                    el.sendBtn.disabled = true;
-                    el.editGroupBtn.disabled = true;
-                    el.clearChatBtn.disabled = true;
-                    el.chatMessages.innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
-                }
+            const removed = groups[index];
+            if (!removed) return;
+            const groupId = removed.id;
+            const originalIndex = index;
+            const wasCurrent = currentGroupId === groupId;
+            const hadLast = localStorage.getItem('lastGroupId_v1') === groupId;
 
-                // 若删除的是记录中的最后一次群聊，清理存档避免下次找不到
-                if (localStorage.getItem('lastGroupId_v1') === groupId) {
-                    localStorage.removeItem('lastGroupId_v1');
-                }
-                
+            groups.splice(index, 1);
+
+            if (wasCurrent) {
+                currentGroupId = null;
+                el.currentGroupName.textContent = '选择一个群聊开始对话';
+                el.groupAgents.textContent = '';
+                el.userInput.disabled = true;
+                el.sendBtn.disabled = true;
+                el.editGroupBtn.disabled = true;
+                el.clearChatBtn.disabled = true;
+                el.chatMessages.innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
+            }
+
+            if (hadLast) {
+                localStorage.removeItem('lastGroupId_v1');
+            }
+
+            saveData();
+            renderGroups();
+
+            let undone = false;
+            const undo = () => {
+                if (undone) return; undone = true;
+                const insertAt = Math.min(originalIndex, groups.length);
+                groups.splice(insertAt, 0, removed);
                 saveData();
                 renderGroups();
-            }
+                if (wasCurrent) {
+                    currentGroupId = groupId;
+                    selectGroup(groupId);
+                }
+                if (hadLast) {
+                    localStorage.setItem('lastGroupId_v1', groupId);
+                }
+                showToast('已撤销删除', 'info', 3000);
+            };
+
+            showToast('删除成功', 'success', 6000, { text: '撤销', onClick: undo });
         }
 
         async function sendMessage() {
