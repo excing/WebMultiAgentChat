@@ -1001,7 +1001,10 @@
         .message-avatar { box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
 
         .chat-input { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--border); backdrop-filter: blur(6px); z-index: 10; padding: 14px 16px; }
-        .chat-input textarea { background: var(--control-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+        .chat-input textarea { background: var(--control-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; color: var(--text); caret-color: var(--text); color-scheme: light dark; }
+        .chat-input textarea::placeholder { color: color-mix(in oklab, var(--text) 55%, transparent); }
+        .chat-input textarea:disabled { background: color-mix(in oklab, var(--control-bg) 85%, transparent); color: color-mix(in oklab, var(--text) 60%, transparent); border-color: var(--border); cursor: not-allowed; }
+        .chat-input textarea:disabled::placeholder { color: color-mix(in oklab, var(--text) 45%, transparent); }
         .chat-input textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--brand); }
         .sidebar-toggle { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
         .sidebar-toggle:hover { background: var(--muted); }
@@ -1104,7 +1107,7 @@
                 <div class="chat-header-left">
                     <button class="sidebar-toggle" id="toggleSidebarBtn">☰</button>
                     <div class="chat-header-info">
-                        <h2 id="currentGroupName">选择一个群聊开始对话</h2>
+                        <h2 id="currentGroupName">选择一个群聊</h2>
                         <div id="groupAgents" class="chat-header-subtitle"></div>
                     </div>
                 </div>
@@ -1730,6 +1733,9 @@
             el.editGroupBtn.addEventListener('click', editCurrentGroup);
             el.clearChatBtn.addEventListener('click', clearChat);
             el.sendBtn.addEventListener('click', sendMessage);
+            el.sendBtn.addEventListener('mousedown', e => {
+                e.preventDefault(); // 阻止点击时让 input 失焦
+            });
 
             el.agentList.addEventListener('click', (e) => {
                 const editBtn = e.target.closest('[data-action="edit-agent"]');
@@ -2633,15 +2639,24 @@
 
         function clearChat() {
             if (!currentGroupId) return;
-            
-            if (confirm('确定要清空当前群聊的所有对话吗？')) {
-                const group = groups.find(g => g.id === currentGroupId);
-                if (group) {
-                    group.messages = [];
-                    saveData();
-                    renderMessages();
-                }
-            }
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+
+            const previous = Array.isArray(group.messages) ? group.messages.slice() : [];
+            group.messages = [];
+            saveData();
+            renderMessages();
+
+            let undone = false;
+            const undo = () => {
+                if (undone) return; undone = true;
+                group.messages = previous;
+                saveData();
+                renderMessages();
+                showToast('已撤销删除', 'info', 3000);
+            };
+
+            showToast('删除成功', 'success', 6000, { text: '撤销', onClick: undo });
         }
 
         function formatTime(timestamp) {
