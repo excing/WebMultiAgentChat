@@ -1493,6 +1493,7 @@
             renderAgents();
             renderGroups();
             autoEnterLastGroup();
+            autoSelectFirstGroupIfNone();
             updateUserDisplay();
             initOpenAI().catch(e => console.error('初始化 OpenAI 客户端失败:', e));
             setupEventListeners();
@@ -1751,7 +1752,18 @@
                 
                 if (editBtn) editGroup(parseInt(editBtn.dataset.index));
                 else if (delBtn) deleteGroup(parseInt(delBtn.dataset.index));
-                else if (item) selectGroup(item.dataset.groupId);
+                else if (item) {
+                    selectGroup(item.dataset.groupId);
+                    // 移动端点击后隐藏左侧抽屉
+                    if (isMobileView()) {
+                        const leftSidebar = qs('.sidebar');
+                        if (leftSidebar && !leftSidebar.classList.contains('hidden')) {
+                            leftSidebar.classList.add('hidden');
+                            localStorage.setItem('sidebarHidden', 'true');
+                            updateMobileSidebarState();
+                        }
+                    }
+                }
             });
 
             if (el.sidebarOverlay) {
@@ -2187,6 +2199,7 @@
 
             saveData();
             renderGroups();
+            autoSelectFirstGroupIfNone();
             if (currentGroupId === group.id) selectGroup(group.id);
             closeGroupModal();
         }
@@ -2218,6 +2231,7 @@
 
             saveData();
             renderGroups();
+            autoSelectFirstGroupIfNone();
 
             let undone = false;
             const undo = () => {
@@ -2226,6 +2240,7 @@
                 groups.splice(insertAt, 0, removed);
                 saveData();
                 renderGroups();
+                autoSelectFirstGroupIfNone();
                 if (wasCurrent) {
                     currentGroupId = groupId;
                     selectGroup(groupId);
@@ -2810,6 +2825,13 @@
             }
 
             updateMobileSidebarState();
+        }
+
+        // 若未选中任何群聊，则默认选中列表中的第一个
+        function autoSelectFirstGroupIfNone() {
+            if (!currentGroupId && Array.isArray(groups) && groups.length > 0) {
+                selectGroup(groups[0].id);
+            }
         }
 
         // 启动时尝试自动进入上次退出的群聊
