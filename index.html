@@ -1040,6 +1040,7 @@
         .message.user .message-text { background: var(--bubble-bg-user); color: var(--bubble-fg-user); border-color: color-mix(in oklab, var(--brand) 35%, var(--border)); }
         .message-bubbles { gap: 8px; }
         .message-avatar { box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+        .message-avatar[data-agent-id] { cursor: pointer; }
 
         .chat-input { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--border); backdrop-filter: blur(6px); z-index: 10; padding: 14px 16px; }
         .chat-input textarea { background: var(--control-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; color: var(--text); caret-color: var(--text); color-scheme: light dark; }
@@ -1154,7 +1155,7 @@
                 </div>
                 <div class="chat-header-actions">
                     <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>
-                        <span class="btn-icon" aria-hidden="true">✎</span>
+                        <span class="btn-icon" aria-hidden="true">✏️</span>
                         <span class="btn-text">编辑群聊</span>
                     </button>
                     <button class="btn btn-secondary" id="clearChatBtn" aria-label="清空对话" disabled>
@@ -1404,6 +1405,7 @@
         let currentGroupId = null;
         let currentEditingAgent = null;
         let currentEditingGroup = null;
+        const ALL_AGENTS_GROUP_ID = 'all_agents_group';
         let globalSettings = {
             userName: '用户',
             baseUrl: 'https://api.openai.com/v1',
@@ -1530,6 +1532,7 @@
 
         function init() {
             loadData();
+            ensureAllAgentsGroup();
             initTheme();
             renderAgents();
             renderGroups();
@@ -1557,6 +1560,35 @@
             localStorage.setItem('agents_v3', JSON.stringify(agents));
             localStorage.setItem('groups_v3', JSON.stringify(groups));
             localStorage.setItem('globalSettings_v3', JSON.stringify(globalSettings));
+        }
+
+        function ensureAllAgentsGroup() {
+            try {
+                let allGroup = groups.find(g => g.isAllAgentsGroup === true || g.id === ALL_AGENTS_GROUP_ID);
+                const allIds = Array.from(new Set(agents.map(a => a.id)));
+                if (!allGroup) {
+                    allGroup = {
+                        id: ALL_AGENTS_GROUP_ID,
+                        name: '所有角色群',
+                        desc: '包含全部角色',
+                        agentIds: allIds,
+                        autoReply: false,
+                        autoReplyMode: 'round_robin',
+                        maxRounds: 5,
+                        isAllAgentsGroup: true,
+                        messages: []
+                    };
+                    groups.unshift(allGroup);
+                    saveData();
+                } else {
+                    allGroup.isAllAgentsGroup = true;
+                    allGroup.agentIds = allIds;
+                    allGroup.autoReply = false; // 禁止自动回复
+                    saveData();
+                }
+            } catch (_) {
+                // 忽略
+            }
         }
 
         // ==== Theme control ====
@@ -1779,6 +1811,15 @@
                 e.preventDefault(); // 阻止点击时让 input 失焦
             });
 
+            // 聊天区头像点击：打开对应角色编辑（仅 assistant 消息头像带有 data-agent-id）
+            el.chatMessages.addEventListener('click', (e) => {
+                const avatar = e.target.closest('.message-avatar[data-agent-id]');
+                if (!avatar) return;
+                const id = avatar.getAttribute('data-agent-id');
+                const idx = agents.findIndex(a => a.id === id);
+                if (idx !== -1) editAgent(idx);
+            });
+
             el.agentList.addEventListener('click', (e) => {
                 const editBtn = e.target.closest('[data-action="edit-agent"]');
                 const delBtn = e.target.closest('[data-action="delete-agent"]');
@@ -1876,13 +1917,22 @@
         }
 
         function renderAgents() {
-            if (agents.length === 0) {
-                el.agentList.innerHTML = '<div class="empty-state"><p>还没有角色<br>点击下方创建</p></div>';
+            const group = groups.find(g => g.id === currentGroupId);
+            const list = group ? agents.filter(a => (group.agentIds || []).includes(a.id)) : [];
+
+            if (!group) {
+                el.agentList.innerHTML = '<div class="empty-state"><p>先选择一个群聊</p></div>';
                 return;
             }
 
-            el.agentList.innerHTML = agents.map((agent, index) => {
+            if (list.length === 0) {
+                el.agentList.innerHTML = '<div class="empty-state"><p>该群聊暂无角色</p></div>';
+                return;
+            }
+
+            el.agentList.innerHTML = list.map((agent) => {
                 const config = resolveAgentConfig(agent, globalSettings);
+                const idx = agents.findIndex(a => a.id === agent.id);
                 return `
                     <div class="item">
                         <div class="item-name">
@@ -1892,8 +1942,8 @@
                         <div class="item-desc">${agent.role || '未设置角色'}</div>
                         <div class="item-desc" style="font-size: 11px;">模型: ${config.model || 'gpt-3.5-turbo'}</div>
                         <div class="item-actions">
-                            <button class="btn btn-secondary" data-action="edit-agent" data-index="${index}">编辑</button>
-                            <button class="btn btn-danger" data-action="delete-agent" data-index="${index}">删除</button>
+                            <button class="btn btn-secondary" data-action="edit-agent" data-index="${idx}">编辑</button>
+                            <button class="btn btn-danger" data-action="delete-agent" data-index="${idx}">删除</button>
                         </div>
                     </div>
                 `;
@@ -1908,14 +1958,15 @@
 
             el.groupList.innerHTML = groups.map((group, index) => {
                 const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+                const isAll = group.isAllAgentsGroup === true;
                 return `
                     <div class="item ${currentGroupId === group.id ? 'active' : ''}" data-group-id="${group.id}">
                         <div class="item-name">${group.name}</div>
                         <div class="item-desc">${group.desc || '无描述'}</div>
                         <div class="item-desc">${groupAgents.length + 1} 个参与者（含用户）</div>
                         <div class="item-actions">
-                            <button class="btn btn-secondary" data-action="edit-group" data-index="${index}">编辑</button>
-                            <button class="btn btn-danger" data-action="delete-group" data-index="${index}">删除</button>
+                            ${isAll ? '' : `<button class="btn btn-secondary" data-action=\"edit-group\" data-index=\"${index}\">编辑</button>
+                            <button class=\"btn btn-danger\" data-action=\"delete-group\" data-index=\"${index}\">删除</button>`}
                         </div>
                     </div>
                 `;
@@ -1948,10 +1999,11 @@
                 const contentHTML = isUser
                     ? `<div class="message-text">${escapeHtml(msg.content)}</div>`
                     : renderGroupedBubbles(msg.content);
+                const dataAgentAttr = (!isUser && agent) ? `data-agent-id="${agent.id}"` : '';
                 
                 return `
                     <div class="message ${isUser ? 'user' : ''}">
-                        <div class="message-avatar" style="background: ${color}">
+                        <div class="message-avatar" ${dataAgentAttr} style="background: ${color}">
                             ${name.charAt(0).toUpperCase()}
                         </div>
                         <div class="message-content">
@@ -2013,11 +2065,12 @@
             el.groupAgents.textContent = `参与者: ${participantNames.join(', ')}`;
             el.userInput.disabled = false;
             el.sendBtn.disabled = false;
-            el.editGroupBtn.disabled = false;
+            el.editGroupBtn.disabled = !!group.isAllAgentsGroup;
             el.clearChatBtn.disabled = false;
             
             renderGroups();
             renderMessages();
+            renderAgents();
         }
 
         function openAgentModal() {
@@ -2093,8 +2146,14 @@
                 agents[currentEditingAgent] = agent;
             } else {
                 agents.push(agent);
+                const allGroup = groups.find(g => g.isAllAgentsGroup);
+                if (allGroup) {
+                    if (!Array.isArray(allGroup.agentIds)) allGroup.agentIds = [];
+                    if (!allGroup.agentIds.includes(agent.id)) allGroup.agentIds.push(agent.id);
+                }
             }
 
+            ensureAllAgentsGroup();
             saveData();
             renderAgents();
             renderGroups();
@@ -2170,7 +2229,7 @@
         function editCurrentGroup() {
             if (!currentGroupId) return;
             const index = groups.findIndex(g => g.id === currentGroupId);
-            if (index !== -1) editGroup(index);
+            if (index !== -1 && !groups[index].isAllAgentsGroup) editGroup(index);
         }
 
         function editGroup(index) {
@@ -2314,6 +2373,10 @@
             el.userInput.value = '';
             saveData();
             renderMessages();
+
+            if (group.isAllAgentsGroup) {
+                return;
+            }
 
             if (group.autoReply) {
                 const mode = group.autoReplyMode || 'round_robin';
