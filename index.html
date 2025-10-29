@@ -1823,8 +1823,10 @@
             el.agentList.addEventListener('click', (e) => {
                 const editBtn = e.target.closest('[data-action="edit-agent"]');
                 const delBtn = e.target.closest('[data-action="delete-agent"]');
+                const removeBtn = e.target.closest('[data-action="remove-from-group"]');
                 if (editBtn) editAgent(parseInt(editBtn.dataset.index));
                 if (delBtn) deleteAgent(parseInt(delBtn.dataset.index));
+                if (removeBtn) removeAgentFromCurrentGroup(removeBtn.dataset.agentId);
             });
 
             el.groupList.addEventListener('click', (e) => {
@@ -1930,9 +1932,15 @@
                 return;
             }
 
+            const isAll = group.isAllAgentsGroup === true;
             el.agentList.innerHTML = list.map((agent) => {
                 const config = resolveAgentConfig(agent, globalSettings);
                 const idx = agents.findIndex(a => a.id === agent.id);
+                const actions = isAll
+                    ? `<button class="btn btn-secondary" data-action="edit-agent" data-index="${idx}">编辑</button>
+                       <button class="btn btn-danger" data-action="delete-agent" data-index="${idx}">删除</button>`
+                    : `<button class="btn btn-secondary" data-action="edit-agent" data-index="${idx}">编辑</button>
+                       <button class="btn btn-danger" data-action="remove-from-group" data-agent-id="${agent.id}">移除</button>`;
                 return `
                     <div class="item">
                         <div class="item-name">
@@ -1942,8 +1950,7 @@
                         <div class="item-desc">${agent.role || '未设置角色'}</div>
                         <div class="item-desc" style="font-size: 11px;">模型: ${config.model || 'gpt-3.5-turbo'}</div>
                         <div class="item-actions">
-                            <button class="btn btn-secondary" data-action="edit-agent" data-index="${idx}">编辑</button>
-                            <button class="btn btn-danger" data-action="delete-agent" data-index="${idx}">删除</button>
+                            ${actions}
                         </div>
                     </div>
                 `;
@@ -2151,6 +2158,13 @@
                     if (!Array.isArray(allGroup.agentIds)) allGroup.agentIds = [];
                     if (!allGroup.agentIds.includes(agent.id)) allGroup.agentIds.push(agent.id);
                 }
+                if (currentGroupId) {
+                    const curr = groups.find(g => g.id === currentGroupId);
+                    if (curr) {
+                        if (!Array.isArray(curr.agentIds)) curr.agentIds = [];
+                        if (!curr.agentIds.includes(agent.id)) curr.agentIds.push(agent.id);
+                    }
+                }
             }
 
             ensureAllAgentsGroup();
@@ -2199,6 +2213,33 @@
             };
 
             showToast('删除成功', 'success', 6000, { text: '撤销', onClick: undo });
+        }
+
+        function removeAgentFromCurrentGroup(agentId) {
+            if (!currentGroupId) return;
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+            if (!Array.isArray(group.agentIds)) group.agentIds = [];
+            if (!group.agentIds.includes(agentId)) return;
+
+            const prev = group.agentIds.slice();
+            group.agentIds = group.agentIds.filter(id => id !== agentId);
+            saveData();
+            renderAgents();
+            renderGroups();
+            if (currentGroupId) renderMessages();
+
+            let undone = false;
+            const undo = () => {
+                if (undone) return; undone = true;
+                group.agentIds = prev;
+                saveData();
+                renderAgents();
+                renderGroups();
+                if (currentGroupId) renderMessages();
+                showToast('已撤销移除', 'info', 3000);
+            };
+            showToast('已从当前群聊移除', 'success', 6000, { text: '撤销', onClick: undo });
         }
 
         function openGroupModal() {
