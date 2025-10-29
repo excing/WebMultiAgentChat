@@ -262,6 +262,7 @@
         .chat-header-subtitle {
             font-size: 12px;
             color: #6b7280;
+            display: none;
         }
 
         .chat-header-actions {
@@ -599,6 +600,23 @@
             border: none;
             overflow: hidden;
             box-shadow: none;
+            
+/* 保留 gap，使用负 margin 来“吃掉” gap
+这个方案比较“取巧”，但也能用，并且改动较小。它利用了负 margin 可以“拉回”后续元素的特性来抵消 gap。
+
+保留 .container 上的 gap: 20px;
+
+修改您的“隐藏”状态： */
+
+/* 关键: 添加一个与 gap 等值的负 margin 来“吃掉”它 */
+
+/* 这个方案有风险!!!!!! */
+
+/* 它在 gap 和 margin 之间创建了耦合。
+如果将来您决定将 gap 从 20px 改为 24px，
+必须记得同时修改隐藏类中的 margin-right: -24px，
+否则布局会出错。 */
+            margin-right: -20px;
         }
 
         .sidebar-right.hidden {
@@ -607,6 +625,7 @@
             border: none;
             overflow: hidden;
             box-shadow: none;
+            margin-left: -20px;
         }
 
         .sidebar-toggle {
@@ -632,11 +651,24 @@
 
             .sidebar {
                 padding: 10px;
+                width: 25vw;
+                max-width: 280px;
             }
 
             .sidebar-right {
                 padding: 10px;
+                width: 28vw;
+                max-width: 300px;
             }
+
+            .sidebar.hidden {
+                margin-right: -10px;
+            }
+
+            .sidebar-right.hidden {
+                margin-left: -10px;
+            }
+
         }
 
         @media (max-width: 768px) {
@@ -1001,7 +1033,7 @@
 
         /* ===== Modern UI: Overrides (non-destructive) ===== */
         body { background: var(--app-bg); color: var(--text); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        .container { max-width: 1600px; gap: 16px; }
+        /* .container { max-width: 1600px; gap: 16px; } */
         .sidebar, .sidebar-right { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
         .main-content { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
 
@@ -2105,7 +2137,7 @@
 
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
             
-            el.currentGroupName.textContent = group.name;
+            el.currentGroupName.textContent = group.name + ` ( ${groupAgents.length + 1} )`;
             const participantNames = [globalSettings.userName, ...groupAgents.map(a => a.name)];
             el.groupAgents.textContent = `参与者: ${participantNames.join(', ')}`;
             el.userInput.disabled = false;
