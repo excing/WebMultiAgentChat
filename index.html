@@ -38,15 +38,15 @@
             height: 100dvh;
             max-width: 1800px;
             margin: 0 auto;
-            gap: 20px;
-            padding: 20px;
+            gap: 16px;
+            padding: 16px;
         }
 
         .sidebar {
             width: 280px;
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -56,7 +56,7 @@
             width: 300px;
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -233,7 +233,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 20px;
+            gap: 16px;
         }
 
         .chat-header-left {
@@ -604,7 +604,7 @@
 /* 保留 gap，使用负 margin 来“吃掉” gap
 这个方案比较“取巧”，但也能用，并且改动较小。它利用了负 margin 可以“拉回”后续元素的特性来抵消 gap。
 
-保留 .container 上的 gap: 20px;
+保留 .container 上的 gap: 16px;
 
 修改您的“隐藏”状态： */
 
@@ -613,10 +613,10 @@
 /* 这个方案有风险!!!!!! */
 
 /* 它在 gap 和 margin 之间创建了耦合。
-如果将来您决定将 gap 从 20px 改为 24px，
+如果将来您决定将 gap 从 16px 改为 24px，
 必须记得同时修改隐藏类中的 margin-right: -24px，
 否则布局会出错。 */
-            margin-right: -20px;
+            margin-right: -16px;
         }
 
         .sidebar-right.hidden {
@@ -625,7 +625,7 @@
             border: none;
             overflow: hidden;
             box-shadow: none;
-            margin-left: -20px;
+            margin-left: -16px;
         }
 
         .sidebar-toggle {
@@ -879,7 +879,7 @@
 
         .toast {
             background: white;
-            padding: 16px 20px;
+            padding: 10px 20px;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             display: flex;
