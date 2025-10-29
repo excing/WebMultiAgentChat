@@ -142,6 +142,16 @@
             margin-top: 8px;
         }
 
+        .item-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .icon-btn { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .icon-btn:hover { background: var(--muted); }
+        .more-wrap { position: relative; }
+        .dropdown-menu { position: absolute; right: 0; top: 36px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); min-width: 120px; padding: 6px; z-index: 20; display: none; }
+        .dropdown-menu.open { display: block; }
+        .dropdown-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .dropdown-item:hover { background: var(--muted); }
+        .role-muted { color: color-mix(in oklab, var(--text) 55%, transparent); font-size: 0.9em; }
+
         .btn {
             padding: 8px 16px;
             border: none;
@@ -1154,14 +1164,6 @@
                     </div>
                 </div>
                 <div class="chat-header-actions">
-                    <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>
-                        <span class="btn-icon" aria-hidden="true">✏️</span>
-                        <span class="btn-text">编辑群聊</span>
-                    </button>
-                    <button class="btn btn-secondary" id="clearChatBtn" aria-label="清空对话" disabled>
-                        <span class="btn-icon" aria-hidden="true">🧹</span>
-                        <span class="btn-text">清空对话</span>
-                    </button>
                     <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn" aria-label="打开右侧栏">⋮</button>
                 </div>
             </div>
@@ -1177,6 +1179,14 @@
         </div>
 
         <div class="sidebar-right">
+            <div class="group-actions" style="display:flex; gap:8px; margin-bottom:12px;">
+                <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>
+                    <span class="btn-icon" aria-hidden="true">✏️</span>
+                </button>
+                <button class="btn btn-secondary" id="clearChatBtn" aria-label="清空对话" disabled>
+                    <span class="btn-icon" aria-hidden="true">🧹</span>
+                </button>
+            </div>
             <h2>AI 角色</h2>
             <div class="list-container" id="agentList"></div>
             <button class="btn btn-primary" id="createAgentBtn">创建角色</button>
@@ -1821,17 +1831,43 @@
             });
 
             el.agentList.addEventListener('click', (e) => {
-                const editBtn = e.target.closest('[data-action="edit-agent"]');
-                const delBtn = e.target.closest('[data-action="delete-agent"]');
+                const deleteBtn = e.target.closest('[data-action="delete-agent"]');
                 const removeBtn = e.target.closest('[data-action="remove-from-group"]');
-                if (editBtn) editAgent(parseInt(editBtn.dataset.index));
-                if (delBtn) deleteAgent(parseInt(delBtn.dataset.index));
-                if (removeBtn) removeAgentFromCurrentGroup(removeBtn.dataset.agentId);
+                if (deleteBtn) {
+                    e.stopPropagation();
+                    deleteAgent(parseInt(deleteBtn.dataset.index));
+                    return;
+                }
+                if (removeBtn) {
+                    e.stopPropagation();
+                    removeAgentFromCurrentGroup(removeBtn.dataset.agentId);
+                    return;
+                }
+                const item = e.target.closest('.agent-item');
+                if (item) {
+                    const id = item.getAttribute('data-agent-id');
+                    const idx = agents.findIndex(a => a.id === id);
+                    if (idx !== -1) editAgent(idx);
+                }
             });
 
             el.groupList.addEventListener('click', (e) => {
+                const moreBtn = e.target.closest('[data-action="group-more"]');
+                if (moreBtn) {
+                    e.stopPropagation();
+                    const idx = moreBtn.dataset.index;
+                    qsa('.dropdown-menu').forEach(m => m.classList.remove('open'));
+                    const menu = qs(`.dropdown-menu[data-menu-for="${idx}"]`);
+                    if (menu) menu.classList.toggle('open');
+                    return;
+                }
+
                 const editBtn = e.target.closest('[data-action="edit-group"]');
                 const delBtn = e.target.closest('[data-action="delete-group"]');
+                if (editBtn || delBtn) {
+                    e.stopPropagation();
+                    qsa('.dropdown-menu').forEach(m => m.classList.remove('open'));
+                }
                 const item = e.target.closest('.item[data-group-id]');
                 
                 if (editBtn) editGroup(parseInt(editBtn.dataset.index));
@@ -1864,6 +1900,12 @@
                 if (content && !content.contains(ev.target)) {
                     top.classList.remove('active');
                 }
+            });
+
+            // 点击空白处关闭更多菜单
+            document.addEventListener('click', (ev) => {
+                const isMore = ev.target.closest('.more-wrap');
+                if (!isMore) qsa('.dropdown-menu').forEach(m => m.classList.remove('open'));
             });
 
             document.addEventListener('keydown', handleGlobalKeydown);
@@ -1937,21 +1979,18 @@
                 const config = resolveAgentConfig(agent, globalSettings);
                 const idx = agents.findIndex(a => a.id === agent.id);
                 const actions = isAll
-                    ? `<button class="btn btn-secondary" data-action="edit-agent" data-index="${idx}">编辑</button>
-                       <button class="btn btn-danger" data-action="delete-agent" data-index="${idx}">删除</button>`
-                    : `<button class="btn btn-secondary" data-action="edit-agent" data-index="${idx}">编辑</button>
-                       <button class="btn btn-danger" data-action="remove-from-group" data-agent-id="${agent.id}">移除</button>`;
+                    ? `<button class="icon-btn" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
+                    : `<button class="icon-btn" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
                 return `
-                    <div class="item">
-                        <div class="item-name">
-                            <span class="agent-color" style="background: ${agent.color}"></span>
-                            ${agent.name}
+                    <div class="item agent-item" data-agent-id="${agent.id}">
+                        <div class="item-header">
+                            <div class="item-name">
+                                <span class="agent-color" style="background: ${agent.color}"></span>
+                                ${agent.name} ${agent.role ? `<span class=\"role-muted\">(${agent.role})</span>` : ''}
+                            </div>
+                            <div class="item-actions" style="margin-top:0;">${actions}</div>
                         </div>
-                        <div class="item-desc">${agent.role || '未设置角色'}</div>
                         <div class="item-desc" style="font-size: 11px;">模型: ${config.model || 'gpt-3.5-turbo'}</div>
-                        <div class="item-actions">
-                            ${actions}
-                        </div>
                     </div>
                 `;
             }).join('');
@@ -1966,14 +2005,20 @@
             el.groupList.innerHTML = groups.map((group, index) => {
                 const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
                 const isAll = group.isAllAgentsGroup === true;
+                const participants = (groupAgents.length + 1);
+                const more = isAll ? '' : `
+                    <div class="more-wrap">
+                        <button class="icon-btn" data-action="group-more" data-index="${index}" aria-label="更多">⋯</button>
+                        <div class="dropdown-menu" data-menu-for="${index}">
+                            <div class="dropdown-item" data-action="edit-group" data-index="${index}">编辑</div>
+                            <div class="dropdown-item" data-action="delete-group" data-index="${index}">删除</div>
+                        </div>
+                    </div>`;
                 return `
                     <div class="item ${currentGroupId === group.id ? 'active' : ''}" data-group-id="${group.id}">
-                        <div class="item-name">${group.name}</div>
-                        <div class="item-desc">${group.desc || '无描述'}</div>
-                        <div class="item-desc">${groupAgents.length + 1} 个参与者（含用户）</div>
-                        <div class="item-actions">
-                            ${isAll ? '' : `<button class="btn btn-secondary" data-action=\"edit-group\" data-index=\"${index}\">编辑</button>
-                            <button class=\"btn btn-danger\" data-action=\"delete-group\" data-index=\"${index}\">删除</button>`}
+                        <div class="item-header">
+                            <div class="item-name">${group.name} <span class="role-muted">(${participants})</span></div>
+                            ${more}
                         </div>
                     </div>
                 `;
