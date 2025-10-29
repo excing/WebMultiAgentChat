@@ -606,6 +606,47 @@
             background: #f5f5f5;
         }
 
+        /* ===== Desktop push effect (>= 769px) ===== */
+        @media (min-width: 769px) {
+            .container { position: relative; }
+
+            .sidebar {
+                position: absolute;
+                top: 20px;
+                bottom: 20px;
+                left: 20px;
+                width: 280px;
+                transform: translateX(0);
+            }
+            .sidebar.hidden {
+                width: 280px;
+                padding: 20px;
+                transform: translateX(-110%);
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow-md);
+            }
+
+            .sidebar-right {
+                position: absolute;
+                top: 20px;
+                bottom: 20px;
+                right: 20px;
+                width: 300px;
+                transform: translateX(0);
+            }
+            .sidebar-right.hidden {
+                width: 300px;
+                padding: 20px;
+                transform: translateX(110%);
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow-md);
+            }
+
+            .main-content { transition: margin 0.3s ease; }
+            .container.left-open .main-content { margin-left: calc(280px + 20px); }
+            .container.right-open .main-content { margin-right: calc(300px + 20px); }
+        }
+
         @media (max-width: 1200px) {
             .container {
                 gap: 10px;
@@ -1783,7 +1824,7 @@
             });
 
             document.addEventListener('keydown', handleGlobalKeydown);
-            window.addEventListener('resize', updateMobileSidebarState);
+            window.addEventListener('resize', () => { updateMobileSidebarState(); updateDesktopPushState(); });
         }
 
         function updateUserDisplay() {
@@ -2751,6 +2792,16 @@
             }
         }
 
+        // Desktop: reflect sidebar open state by pushing main content
+        function updateDesktopPushState() {
+            if (isMobileView()) return;
+            const container = qs('.container');
+            const leftOpen = !qs('.sidebar').classList.contains('hidden');
+            const rightOpen = !qs('.sidebar-right').classList.contains('hidden');
+            container.classList.toggle('left-open', leftOpen);
+            container.classList.toggle('right-open', rightOpen);
+        }
+
         function closeMobileSidebars() {
             if (!isMobileView() || !el.sidebarOverlay) return;
 
@@ -2804,6 +2855,7 @@
             sidebar.classList.toggle('hidden');
             localStorage.setItem('sidebarHidden', sidebar.classList.contains('hidden'));
             updateMobileSidebarState();
+            updateDesktopPushState();
         }
 
         function toggleRightSidebar() {
@@ -2811,6 +2863,7 @@
             sidebarRight.classList.toggle('hidden');
             localStorage.setItem('sidebarRightHidden', sidebarRight.classList.contains('hidden'));
             updateMobileSidebarState();
+            updateDesktopPushState();
         }
 
         function restoreSidebarState() {
@@ -2825,6 +2878,7 @@
             }
 
             updateMobileSidebarState();
+            updateDesktopPushState();
         }
 
         // 若未选中任何群聊，则默认选中列表中的第一个
@@ -2847,6 +2901,7 @@
         init();
         restoreSidebarState();
         updateMobileSidebarState();
+        updateDesktopPushState();
     </script>
 </body>
 </html>

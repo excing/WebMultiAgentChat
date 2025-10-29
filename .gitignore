@@ -60,3 +60,6 @@ out/
 # Coverage
 coverage/
 .nyc_output/
+
+## backup
+__*_backup__.html
