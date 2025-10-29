@@ -1035,6 +1035,7 @@
         body { background: var(--app-bg); color: var(--text); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
         /* .container { max-width: 1600px; gap: 16px; } */
         .sidebar, .sidebar-right { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
+        .sidebar-right-header { display: flex; justify-content: space-between; align-items: center; }
         .main-content { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
 
         .user-bar { background: var(--muted); border: 1px solid var(--border); border-radius: 10px; }
@@ -1204,17 +1205,13 @@
         </div>
 
         <div class="sidebar-right">
-            <div class="group-actions" style="display:flex; gap:8px; margin-bottom:12px;">
-                <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>
-                    <span class="btn-icon" aria-hidden="true">✏️</span>
-                </button>
-                <button class="btn btn-secondary" id="clearChatBtn" aria-label="清空对话" disabled>
-                    <span class="btn-icon" aria-hidden="true">🧹</span>
-                </button>
-            </div>
-            <h2>AI 角色</h2>
+            <h2 class="sidebar-right-header">
+                <span>AI 角色</span>
+                <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>编辑群聊</button>
+            </h2>
             <div class="list-container" id="agentList"></div>
             <button class="btn btn-primary" id="createAgentBtn">创建角色</button>
+            <button class="btn btn-danger" style="margin-top: 8px;" id="clearChatBtn" aria-label="清空对话" disabled>清空对话</button>
         </div>
     </div>
 
@@ -2137,7 +2134,7 @@
 
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
             
-            el.currentGroupName.textContent = group.name + ` ( ${groupAgents.length + 1} )`;
+            el.currentGroupName.textContent = group.name + `(${groupAgents.length + 1})`;
             const participantNames = [globalSettings.userName, ...groupAgents.map(a => a.name)];
             el.groupAgents.textContent = `参与者: ${participantNames.join(', ')}`;
             el.userInput.disabled = false;
