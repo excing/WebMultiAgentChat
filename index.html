@@ -143,13 +143,21 @@
         }
 
         .item-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-        .icon-btn { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .icon-btn { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition: background var(--transition), border-color var(--transition), transform var(--transition), color var(--transition); }
         .icon-btn:hover { background: var(--muted); }
+        .icon-btn:active { transform: scale(0.98); }
+        .icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+        .icon-btn-danger { background: var(--danger-soft-bg); border-color: var(--danger-soft-border); color: var(--danger-soft-fg); }
+        .icon-btn-danger:hover { background: var(--danger-soft-bg-hover); }
+        .icon-btn-danger:active { background: var(--danger-soft-bg-active); }
         .more-wrap { position: relative; }
         .dropdown-menu { position: absolute; right: 0; top: 36px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); min-width: 120px; padding: 6px; z-index: 20; display: none; }
         .dropdown-menu.open { display: block; }
-        .dropdown-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .dropdown-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--text); }
         .dropdown-item:hover { background: var(--muted); }
+        .dropdown-item-danger { background: var(--danger-soft-bg); color: var(--danger-soft-fg); border: 1px solid var(--danger-soft-border); }
+        .dropdown-item-danger:hover { background: var(--danger-soft-bg-hover); }
+        .dropdown-item-danger:active { background: var(--danger-soft-bg-active); }
         .role-muted { color: color-mix(in oklab, var(--text) 55%, transparent); font-size: 0.9em; }
 
         .btn {
@@ -999,6 +1007,13 @@
             --bubble-bg-ai: var(--panel);
             --bubble-bg-user: color-mix(in oklab, var(--brand) 18%, var(--panel));
             --bubble-fg-user: var(--text);
+
+            /* Soft danger tokens for subtle destructive actions */
+            --danger-soft-bg: hsl(0 100% 97%);
+            --danger-soft-bg-hover: hsl(0 100% 95%);
+            --danger-soft-bg-active: hsl(0 100% 93%);
+            --danger-soft-border: hsl(0 92% 88%);
+            --danger-soft-fg: hsl(0 70% 30%);
         }
 
         @media (prefers-color-scheme: dark) {
@@ -1017,6 +1032,13 @@
                 --bubble-bg-ai: hsl(224 14% 16%);
                 --bubble-bg-user: color-mix(in oklab, var(--brand) 26%, var(--panel));
                 --bubble-fg-user: var(--text);
+
+                /* Dark theme soft danger */
+                --danger-soft-bg: hsl(0 60% 20%);
+                --danger-soft-bg-hover: hsl(0 60% 24%);
+                --danger-soft-bg-active: hsl(0 60% 18%);
+                --danger-soft-border: hsl(0 60% 28%);
+                --danger-soft-fg: hsl(0 85% 90%);
             }
         }
 
@@ -1094,6 +1116,13 @@
             --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
             --shadow-md: 0 6px 16px rgba(0,0,0,0.08);
             --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+
+            /* Soft danger tokens for subtle destructive actions */
+            --danger-soft-bg: hsl(0 100% 97%);
+            --danger-soft-bg-hover: hsl(0 100% 95%);
+            --danger-soft-bg-active: hsl(0 100% 93%);
+            --danger-soft-border: hsl(0 92% 88%);
+            --danger-soft-fg: hsl(0 70% 30%);
         }
         :root[data-theme="dark"] {
             --app-bg: hsl(224 14% 10%);
@@ -1108,6 +1137,13 @@
             --shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
             --shadow-md: 0 6px 16px rgba(0,0,0,0.55);
             --shadow-lg: 0 12px 32px rgba(0,0,0,0.6);
+
+            /* Dark theme soft danger */
+            --danger-soft-bg: hsl(0 60% 20%);
+            --danger-soft-bg-hover: hsl(0 60% 24%);
+            --danger-soft-bg-active: hsl(0 60% 18%);
+            --danger-soft-border: hsl(0 60% 28%);
+            --danger-soft-fg: hsl(0 85% 90%);
         }
 
         /* Contrast-safe text and surfaces */
@@ -1979,14 +2015,14 @@
                 const config = resolveAgentConfig(agent, globalSettings);
                 const idx = agents.findIndex(a => a.id === agent.id);
                 const actions = isAll
-                    ? `<button class="icon-btn" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
-                    : `<button class="icon-btn" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
+                    ? `<button class="icon-btn icon-btn-danger" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
+                    : `<button class="icon-btn icon-btn-danger" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
                 return `
                     <div class="item agent-item" data-agent-id="${agent.id}">
                         <div class="item-header">
                             <div class="item-name">
                                 <span class="agent-color" style="background: ${agent.color}"></span>
-                                ${agent.name} ${agent.role ? `<span class=\"role-muted\">(${agent.role})</span>` : ''}
+                                ${agent.name} ${agent.role ? `<span class=\"role-muted\">${agent.role}</span>` : ''}
                             </div>
                             <div class="item-actions" style="margin-top:0;">${actions}</div>
                         </div>
@@ -2008,10 +2044,10 @@
                 const participants = (groupAgents.length + 1);
                 const more = isAll ? '' : `
                     <div class="more-wrap">
-                        <button class="icon-btn" data-action="group-more" data-index="${index}" aria-label="更多">⋯</button>
+                        <button class="icon-btn" data-action="group-more" data-index="${index}" aria-label="更多"><span style="font-size: 4px;">🔘 🔘 🔘</span></button>
                         <div class="dropdown-menu" data-menu-for="${index}">
                             <div class="dropdown-item" data-action="edit-group" data-index="${index}">编辑</div>
-                            <div class="dropdown-item" data-action="delete-group" data-index="${index}">删除</div>
+                            <div class="dropdown-item dropdown-item-danger" data-action="delete-group" data-index="${index}">删除</div>
                         </div>
                     </div>`;
                 return `
