@@ -243,6 +243,10 @@
             min-width: 0;
         }
 
+        .chat-header-menu {
+            font-weight: 600;
+        }
+
         .chat-header-info {
             display: flex;
             flex-direction: column;
@@ -381,6 +385,7 @@
             padding: 20px;
             border-top: 1px solid #e0e0e0;
             display: flex;
+            align-items: end;
             gap: 10px;
         }
 
@@ -421,10 +426,6 @@
             max-height: 85vh;
             overflow-y: auto;
             margin: auto;
-        }
-
-        .modal-header {
-            margin-bottom: 20px;
         }
 
         .modal-header h3 {
@@ -1162,6 +1163,45 @@
         .chat-header-left .sidebar-toggle:hover { background: var(--muted); }
         .chat-header-actions .btn.btn-secondary { background: var(--panel); color: var(--text); border-color: var(--border); }
         .chat-header-actions .btn.btn-secondary:hover { background: var(--muted); }
+
+        /* ===== Modal sticky header/footer overrides ===== */
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            max-height: 85dvh;
+            overflow: auto;
+            padding: 0;
+        }
+        .modal-header {
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            margin: 0;
+            padding: 12px 20px;
+        }
+        .modal-header h3 {
+            margin: 0;
+        }
+        .modal-content form {
+            flex: 1;
+            overflow: auto;
+            padding: 0 20px;
+            margin-top: 8px;
+        }
+        .modal-actions {
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+            background: var(--panel);
+            border-top: 1px solid var(--border);
+            margin: 0;
+            padding: 12px 20px;
+        }
+        @media (max-width: 768px) {
+            .modal-content {
+                max-height: 75vh;
+                padding: 0;
+            }
+        }
     </style>
 </head>
 <body>
