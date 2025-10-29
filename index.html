@@ -624,47 +624,6 @@
             background: #f5f5f5;
         }
 
-        /* ===== Desktop push effect (>= 769px) ===== */
-        @media (min-width: 769px) {
-            .container { position: relative; }
-
-            .sidebar {
-                position: absolute;
-                top: 20px;
-                bottom: 20px;
-                left: 20px;
-                width: 280px;
-                transform: translateX(0);
-            }
-            .sidebar.hidden {
-                width: 280px;
-                padding: 20px;
-                transform: translateX(-110%);
-                border: 1px solid var(--border);
-                box-shadow: var(--shadow-md);
-            }
-
-            .sidebar-right {
-                position: absolute;
-                top: 20px;
-                bottom: 20px;
-                right: 20px;
-                width: 300px;
-                transform: translateX(0);
-            }
-            .sidebar-right.hidden {
-                width: 300px;
-                padding: 20px;
-                transform: translateX(110%);
-                border: 1px solid var(--border);
-                box-shadow: var(--shadow-md);
-            }
-
-            .main-content { transition: margin 0.3s ease; }
-            .container.left-open .main-content { margin-left: calc(280px + 20px); }
-            .container.right-open .main-content { margin-right: calc(300px + 20px); }
-        }
-
         @media (max-width: 1200px) {
             .container {
                 gap: 10px;
@@ -672,11 +631,11 @@
             }
 
             .sidebar {
-                width: 250px;
+                padding: 10px;
             }
 
             .sidebar-right {
-                width: 250px;
+                padding: 10px;
             }
         }
 
@@ -689,10 +648,9 @@
 
             .sidebar, .sidebar-right {
                 position: fixed;
-                height: calc(100dvh - 60px);
+                height: calc(100dvh);
                 border-radius: 0;
                 z-index: 1000;
-                top: 60px;
                 transition: all 0.3s ease;
                 width: 280px;
             }
@@ -809,8 +767,7 @@
 
             .sidebar, .sidebar-right {
                 width: 75vw;
-                height: calc(100dvh - 50px);
-                top: 50px;
+                height: calc(100dvh);
             }
 
             .chat-header {
