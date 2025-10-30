@@ -69,6 +69,7 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
             overflow: hidden;
         }
 
@@ -397,6 +398,32 @@
             font-size: 14px;
             resize: none;
             font-family: inherit;
+        }
+
+        /* 置底悬浮按钮 */
+        .scroll-bottom-btn {
+            position: absolute;
+            right: 16px;
+            bottom: calc(72px + 12px);
+            z-index: 15;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--panel);
+            color: var(--text);
+            box-shadow: var(--shadow-md);
+            opacity: 0;
+            transform: translateY(6px);
+            pointer-events: none;
+            transition: opacity var(--transition), transform var(--transition);
+        }
+        .scroll-bottom-btn.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        @media (max-width: 768px) {
+            .scroll-bottom-btn { right: 10px; bottom: calc(60px + 10px); }
         }
 
         .modal {
@@ -1242,6 +1269,7 @@
                 <textarea id="userInput" placeholder="输入消息... (Shift+Enter换行, Enter发送)" rows="2" disabled></textarea>
                 <button class="btn btn-success" id="sendBtn" disabled>发送</button>
             </div>
+            <button id="scrollToBottomBtn" class="scroll-bottom-btn" aria-label="置底" title="置底">⬇︎ 置底</button>
         </div>
 
         <div class="sidebar-right">
@@ -1552,12 +1580,22 @@
             sendBtn: qs('#sendBtn'),
             toastContainer: qs('#toastContainer'),
             userNameDisplay: qs('#userNameDisplay'),
-            sidebarOverlay: qs('#sidebarOverlay')
+            sidebarOverlay: qs('#sidebarOverlay'),
+            scrollToBottomBtn: qs('#scrollToBottomBtn')
         };
 
         // 聊天自动滚动：仅在用户位于底部时保持置底
         let shouldAutoScroll = true;
         const isAtBottom = (node, threshold = 24) => (node.scrollHeight - node.scrollTop - node.clientHeight) <= threshold;
+
+        function scrollToBottom(smooth = true) {
+            if (!el.chatMessages) return;
+            try {
+                el.chatMessages.scrollTo({ top: el.chatMessages.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+            } catch (_) {
+                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+            }
+        }
 
         function showToast(message, type = 'info', duration = 3000, action) {
             const container = el.toastContainer;
@@ -1896,10 +1934,22 @@
                 if (idx !== -1) editAgent(idx);
             });
 
-            // 仅当用户位于底部时自动置底
+            // 仅当用户位于底部时自动置底，并在未置底时显示悬浮按钮
             el.chatMessages.addEventListener('scroll', () => {
                 shouldAutoScroll = isAtBottom(el.chatMessages);
+                if (el.scrollToBottomBtn) {
+                    el.scrollToBottomBtn.classList.toggle('show', !shouldAutoScroll);
+                }
             });
+
+            if (el.scrollToBottomBtn) {
+                el.scrollToBottomBtn.addEventListener('click', () => {
+                    shouldAutoScroll = true;
+                    scrollToBottom(true);
+                });
+                // 初始化按钮可见性
+                el.scrollToBottomBtn.classList.toggle('show', !isAtBottom(el.chatMessages));
+            }
 
             el.agentList.addEventListener('click', (e) => {
                 const deleteBtn = e.target.closest('[data-action="delete-agent"]');
@@ -2144,6 +2194,9 @@
                 if (shouldAutoScroll) {
                     el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
                 }
+            }
+            if (el.scrollToBottomBtn) {
+                el.scrollToBottomBtn.classList.toggle('show', !isAtBottom(el.chatMessages));
             }
         }
 
@@ -2535,7 +2588,10 @@
             group.messages.push(userMessage);
             el.userInput.value = '';
             saveData();
+            // 发送时强制置底
+            shouldAutoScroll = true;
             renderMessages();
+            scrollToBottom(true);
 
             if (group.isAllAgentsGroup) {
                 return;
