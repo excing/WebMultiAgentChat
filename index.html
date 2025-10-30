@@ -73,6 +73,16 @@
             overflow: hidden;
         }
 
+        /* ===== Welcome section ===== */
+        .welcome-screen { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 26px 0 }
+        .welcome-logo { font-size: 108px; font-weight: 300; line-height: 1.0; letter-spacing: .04em; color: var(--panel); }
+
+        /* Two-column table-like layout for actions */
+        .welcome-actions { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; row-gap: 8px; align-items: start; max-width: 720px; margin: 8px auto 0; }
+        .welcome-actions .wa-desc { text-align: right; color: color-mix(in oklab, var(--text) 30%, transparent); margin-top: 6px; }
+        .welcome-actions .wa-action { text-align: left; display: flex; flex-wrap: wrap; gap: 8px; }
+        .welcome-actions button { color: color-mix(in oklab, var(--text) 55%, transparent); font-size: 85%;}
+
         h2 {
             margin-bottom: 15px;
             color: #333;
@@ -173,7 +183,7 @@
 
         .btn-icon {
             display: inline-block;
-            font-size: 16px;
+            /* font-size: 16px; */
             margin-right: 8px;
             line-height: 1;
         }
@@ -523,7 +533,7 @@
 
         .empty-state {
             text-align: center;
-            padding: 40px 20px;
+            padding: 40px 0px;
             color: #999;
         }
 
@@ -774,6 +784,8 @@
             .form-group select {
                 font-size: 16px;
             }
+
+            .welcome-logo { font-size: 92px; }
         }
 
         @media (max-width: 480px) {
@@ -834,6 +846,8 @@
             .chat-header-subtitle {
                 display: none;
             }
+
+            .welcome-logo { font-size: 86px; }
         }
 
         .toast-container {
@@ -2088,11 +2102,10 @@
                 el.chatMessages.innerHTML = `<div class="empty-state">
                 <div id="welcomeScreen" class="welcome-screen">
                     <div class="welcome-logo">AITHOS</div>
-                    <div class="welcome-sub">欢迎使用，多智能体群聊从这里开始</div>
                     <div class="welcome-actions">
-                        <div>从左侧面板打开设置<button class="btn btn-secondary" id="welcomeSettingsBtn"><span class="btn-icon">⚙️</span><span class="btn-text">用户设置</span></button></div>
-                        <div>创建角色<button class="btn btn-primary" id="welcomeCreateAgentBtn"><span class="btn-icon">➕</span><span class="btn-text">创建角色</span></button></div>
-                        <div>选择或创建群聊<button class="btn btn-success" id="welcomeCreateGroupBtn"><span class="btn-icon">👥</span><span class="btn-text">创建群聊</span></button></div>
+                        <div class="wa-desc">打开用户设置</div><div class="wa-action"><button class="btn btn-secondary" id="welcomeSettingsBtn"><span class="btn-icon">⚙️</span><span class="btn-text">用户设置</span></button></div>
+                        <div class="wa-desc">创建角色</div><div class="wa-action"><button class="btn btn-secondary" id="welcomeCreateAgentBtn"><span class="btn-icon">👤</span><span class="btn-text">创建角色</span></button></div>
+                        <div class="wa-desc">选择或创建群聊</div><div class="wa-action"><button class="btn btn-secondary" id="welcomeCreateGroupBtn"><span class="btn-icon">✚</span><span class="btn-text">创建群聊</span></button><button class="btn btn-secondary" id="welcomeSelectGroupBtn"><span class="btn-icon">☰</span><span class="btn-text">选择群聊</span></button></div>
                     </div>
                 </div>
                 </div>`;
