@@ -1632,7 +1632,7 @@
                 if (!allGroup) {
                     allGroup = {
                         id: ALL_AGENTS_GROUP_ID,
-                        name: '所有角色群',
+                        name: '所有角色',
                         desc: '包含全部角色',
                         agentIds: allIds,
                         autoReply: false,
@@ -1876,6 +1876,21 @@
 
             // 聊天区头像点击：打开对应角色编辑（仅 assistant 消息头像带有 data-agent-id）
             el.chatMessages.addEventListener('click', (e) => {
+                // welcome-actions 快捷操作
+                if (e.target.closest('#welcomeSettingsBtn')) { openUserSettingsModal(); return; }
+                if (e.target.closest('#welcomeCreateAgentBtn')) { openAgentModal(); return; }
+                if (e.target.closest('#welcomeCreateGroupBtn')) { openGroupModal(); return; }
+                if (e.target.closest('#welcomeSelectGroupBtn')) {
+                    const leftSidebar = qs('.sidebar');
+                    if (leftSidebar && leftSidebar.classList.contains('hidden')) {
+                        leftSidebar.classList.remove('hidden');
+                        localStorage.setItem('sidebarHidden', 'false');
+                        updateMobileSidebarState();
+                        updateDesktopPushState();
+                    }
+                    return;
+                }
+
                 const avatar = e.target.closest('.message-avatar[data-agent-id]');
                 if (!avatar) return;
                 const id = avatar.getAttribute('data-agent-id');
