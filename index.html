@@ -2030,7 +2030,7 @@
             });
 
             document.addEventListener('keydown', handleGlobalKeydown);
-            window.addEventListener('resize', () => { updateMobileSidebarState(); updateDesktopPushState(); });
+            window.addEventListener('resize', () => { updateMobileSidebarState(); updateDesktopPushState(); applyDefaultSidebarHiddenIfNonDesktop(); });
         }
 
         function updateUserDisplay() {
@@ -3060,6 +3060,20 @@
             return window.matchMedia('(max-width: 768px)').matches;
         }
 
+        function applyDefaultSidebarHiddenIfNonDesktop() {
+            const hasLeft = localStorage.getItem('sidebarHidden');
+            const hasRight = localStorage.getItem('sidebarRightHidden');
+            if (!isMobileView()) return;
+            if (hasLeft === null && hasRight === null) {
+                const left = qs('.sidebar');
+                const right = qs('.sidebar-right');
+                if (left && !left.classList.contains('hidden')) left.classList.add('hidden');
+                if (right && !right.classList.contains('hidden')) right.classList.add('hidden');
+                localStorage.setItem('sidebarHidden', 'true');
+                localStorage.setItem('sidebarRightHidden', 'true');
+            }
+        }
+
         function updateMobileSidebarState() {
             if (!el.sidebarOverlay) return;
 
@@ -3186,6 +3200,7 @@
 
         init();
         restoreSidebarState();
+        applyDefaultSidebarHiddenIfNonDesktop();
         updateMobileSidebarState();
         updateDesktopPushState();
     </script>
