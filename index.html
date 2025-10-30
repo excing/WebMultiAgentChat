@@ -679,6 +679,9 @@
                 margin-left: -10px;
             }
 
+            .chat-header {
+                padding: 12px 14px;
+            }
         }
 
         @media (max-width: 768px) {
@@ -1019,7 +1022,9 @@
         body { background: var(--app-bg); color: var(--text); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
         /* .container { max-width: 1600px; gap: 16px; } */
         .sidebar, .sidebar-right { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
-        .sidebar-right-header { display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-right-header { display: flex; justify-content: space-between; align-items: center; margin: 3px 0 16px 0; }
+        .sidebar-left-header { display: flex; justify-content: space-between; align-items: center; margin: 3px 0 16px 0; }
+        .sidebar-right-actions { display: flex; align-items: center; gap: 8px; }
         .main-content { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
 
         .user-bar { background: var(--muted); border: 1px solid var(--border); border-radius: 10px; }
@@ -1186,6 +1191,12 @@
     <div class="toast-container" id="toastContainer"></div>
     <div class="container">
         <div class="sidebar">
+            <h1 class="sidebar-left-header">
+                <span>Aithos</span>
+                <button class="sidebar-toggle btn btn-secondary" id="collapseLeftSidebarBtn" aria-label="收起左侧栏">⟨</button>
+            </h1>
+            <!-- <h2>群聊列表</h2> -->
+            <div class="list-container" id="groupList"></div>
             <div class="user-bar">
                 <div class="user-info">
                     👤 <span id="userNameDisplay">用户</span>
@@ -1193,8 +1204,6 @@
                 <button class="btn btn-secondary" id="userSettingsBtn">设置</button>
             </div>
 
-            <h2>群聊列表</h2>
-            <div class="list-container" id="groupList"></div>
             <button class="btn btn-primary" id="createGroupBtn">创建群聊</button>
         </div>
 
@@ -1224,7 +1233,10 @@
         <div class="sidebar-right">
             <h2 class="sidebar-right-header">
                 <span>AI 角色</span>
-                <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>编辑群聊</button>
+                <div class="sidebar-right-actions">
+                    <button class="btn btn-secondary" id="editGroupBtn" aria-label="编辑群聊" disabled>编辑群聊</button>
+                    <button class="sidebar-toggle btn btn-secondary" id="collapseRightSidebarBtn" aria-label="收起右侧栏">⟩</button>
+                </div>
             </h2>
             <div class="list-container" id="agentList"></div>
             <button class="btn btn-primary" id="createAgentBtn">创建角色</button>
@@ -1530,7 +1542,9 @@
             toastContainer: qs('#toastContainer'),
             userNameDisplay: qs('#userNameDisplay'),
             sidebarOverlay: qs('#sidebarOverlay'),
-            scrollToBottomBtn: qs('#scrollToBottomBtn')
+            scrollToBottomBtn: qs('#scrollToBottomBtn'),
+            collapseLeftSidebarBtn: qs('#collapseLeftSidebarBtn'),
+            collapseRightSidebarBtn: qs('#collapseRightSidebarBtn')
         };
 
         // 聊天自动滚动：仅在用户位于底部时保持置底
@@ -1867,6 +1881,8 @@
 
             el.toggleSidebarBtn.addEventListener('click', toggleSidebar);
             el.toggleRightSidebarBtn.addEventListener('click', toggleRightSidebar);
+            if (el.collapseLeftSidebarBtn) el.collapseLeftSidebarBtn.addEventListener('click', toggleSidebar);
+            if (el.collapseRightSidebarBtn) el.collapseRightSidebarBtn.addEventListener('click', toggleRightSidebar);
             el.editGroupBtn.addEventListener('click', editCurrentGroup);
             el.clearChatBtn.addEventListener('click', clearChat);
             el.sendBtn.addEventListener('click', sendMessage);
