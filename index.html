@@ -244,10 +244,6 @@
             min-width: 0;
         }
 
-        .chat-header-menu {
-            font-weight: 600;
-        }
-
         .chat-header-info {
             display: flex;
             flex-direction: column;
@@ -270,30 +266,7 @@
             display: none;
         }
 
-        .chat-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .chat-header-actions .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            height: 36px;
-            padding: 0 16px;
-        }
-
-        .chat-header-actions .sidebar-toggle {
-            border: 1px solid #d4d9ff;
-            background: #eef1ff;
-            color: #3f51b5;
-        }
-
-        .chat-header-left .sidebar-toggle,
-        .chat-header-actions .sidebar-toggle {
+        .chat-header-left .sidebar-toggle {
             margin-right: 0;
         }
 
@@ -663,7 +636,6 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 18px;
-            margin-right: 10px;
             transition: all 0.2s;
         }
 
@@ -765,22 +737,6 @@
                 min-width: 0;
             }
 
-            .chat-header-actions {
-                flex: 0 0 auto;
-                display: flex;
-                gap: 6px;
-                white-space: nowrap;
-            }
-
-            .chat-header-actions .btn,
-            .chat-header-actions .sidebar-toggle {
-                flex: 0 0 auto;
-                padding: 8px 12px;
-            }
-
-            .chat-header-actions .btn .btn-text { display: none; }
-            .chat-header-actions .btn .btn-icon { margin-right: 0; }
-
             .chat-header-info h2 {
                 font-size: 18px;
             }
@@ -864,25 +820,11 @@
                 padding: 6px 8px;
                 font-size: 16px;
                 margin-right: 0;
-                padding: 8px 12px;
             }
 
             .btn {
                 padding: 6px 10px;
                 font-size: 16px;
-            }
-
-            .chat-header-actions .btn,
-            .chat-header-actions .sidebar-toggle {
-                flex: 0 0 auto;
-            }
-
-            .chat-header-actions .btn .btn-text {
-                display: none;
-            }
-
-            .chat-header-actions .btn .btn-icon {
-                margin-right: 0;
             }
 
             .chat-header-info h2 {
@@ -1175,21 +1117,12 @@
         .section-divider { background: var(--border); }
         .typing-indicator span { background: color-mix(in oklab, var(--text) 50%, transparent); }
 
-        /* Header buttons fixes (override older specific styles) */
-        .chat-header-actions .sidebar-toggle {
-            background: var(--panel);
-            color: var(--text);
-            border-color: var(--border);
-        }
-        .chat-header-actions .sidebar-toggle:hover { background: var(--muted); }
         .chat-header-left .sidebar-toggle {
             background: var(--panel);
             color: var(--text);
             border-color: var(--border);
         }
         .chat-header-left .sidebar-toggle:hover { background: var(--muted); }
-        .chat-header-actions .btn.btn-secondary { background: var(--panel); color: var(--text); border-color: var(--border); }
-        .chat-header-actions .btn.btn-secondary:hover { background: var(--muted); }
 
         /* ===== Modal sticky header/footer overrides ===== */
         .modal-content {
@@ -1229,6 +1162,10 @@
                 padding: 0;
             }
         }
+
+        .chat-header-menu {
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
@@ -1256,9 +1193,7 @@
                         <div id="groupAgents" class="chat-header-subtitle"></div>
                     </div>
                 </div>
-                <div class="chat-header-actions">
-                    <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn" aria-label="打开右侧栏">⋮</button>
-                </div>
+                <button class="sidebar-toggle chat-header-menu" id="toggleRightSidebarBtn" aria-label="打开右侧栏">👥</button>
             </div>
             <div class="chat-messages" id="chatMessages">
                 <div class="empty-state">
@@ -2150,7 +2085,17 @@
             const group = groups.find(g => g.id === currentGroupId);
             
             if (!group || !group.messages || group.messages.length === 0) {
-                el.chatMessages.innerHTML = '<div class="empty-state"><p>还没有消息<br>开始对话吧！</p></div>';
+                el.chatMessages.innerHTML = `<div class="empty-state">
+                <div id="welcomeScreen" class="welcome-screen">
+                    <div class="welcome-logo">AITHOS</div>
+                    <div class="welcome-sub">欢迎使用，多智能体群聊从这里开始</div>
+                    <div class="welcome-actions">
+                        <div>从左侧面板打开设置<button class="btn btn-secondary" id="welcomeSettingsBtn"><span class="btn-icon">⚙️</span><span class="btn-text">用户设置</span></button></div>
+                        <div>创建角色<button class="btn btn-primary" id="welcomeCreateAgentBtn"><span class="btn-icon">➕</span><span class="btn-text">创建角色</span></button></div>
+                        <div>选择或创建群聊<button class="btn btn-success" id="welcomeCreateGroupBtn"><span class="btn-icon">👥</span><span class="btn-text">创建群聊</span></button></div>
+                    </div>
+                </div>
+                </div>`;
                 return;
             }
 
