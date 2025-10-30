@@ -1555,6 +1555,10 @@
             sidebarOverlay: qs('#sidebarOverlay')
         };
 
+        // 聊天自动滚动：仅在用户位于底部时保持置底
+        let shouldAutoScroll = true;
+        const isAtBottom = (node, threshold = 24) => (node.scrollHeight - node.scrollTop - node.clientHeight) <= threshold;
+
         function showToast(message, type = 'info', duration = 3000, action) {
             const container = el.toastContainer;
             const toast = document.createElement('div');
@@ -1892,6 +1896,11 @@
                 if (idx !== -1) editAgent(idx);
             });
 
+            // 仅当用户位于底部时自动置底
+            el.chatMessages.addEventListener('scroll', () => {
+                shouldAutoScroll = isAtBottom(el.chatMessages);
+            });
+
             el.agentList.addEventListener('click', (e) => {
                 const deleteBtn = e.target.closest('[data-action="delete-agent"]');
                 const removeBtn = e.target.closest('[data-action="remove-from-group"]');
@@ -2131,7 +2140,11 @@
                 `;
             }).join('');
             
-            el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+            if (shouldAutoScroll) {
+                if (shouldAutoScroll) {
+                    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+                }
+            }
         }
 
         // 将一段文本按“空行分段”，代码块 (``` ... ```) 内不拆分
@@ -2182,6 +2195,8 @@
             el.editGroupBtn.disabled = !!group.isAllAgentsGroup;
             el.clearChatBtn.disabled = false;
             
+            shouldAutoScroll = true;
+
             renderGroups();
             renderMessages();
             renderAgents();
@@ -2868,7 +2883,9 @@
                 </div>
             `;
             el.chatMessages.appendChild(messageDiv);
-            el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+            if (shouldAutoScroll) {
+                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+            }
         }
 
         function updateStreamingMessage(agent, content) {
@@ -2884,7 +2901,9 @@
                 if (container && container.classList.contains('streaming') && content.trim().length > 0) {
                     container.classList.remove('streaming');
                 }
-                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+                if (shouldAutoScroll) {
+                    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+                }
                 return;
             }
             // 兼容旧结构
