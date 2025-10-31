@@ -2716,6 +2716,7 @@
             const n = mentionState.filtered.length;
             mentionState.selected = (mentionState.selected + delta + n) % n;
             renderMentionMenu();
+            scrollActiveMentionIntoView();
         }
         function chooseMention() {
             if (!mentionState.open || mentionState.filtered.length === 0) { closeMention(); return; }
@@ -2811,17 +2812,16 @@
         }
 
         function scrollActiveMentionIntoView() {
-            if (!el.mentionMenu) return;
-            const active = el.mentionMenu.querySelector('.mention-item.active');
-            if (!active) return;
-            try {
-                const menuRect = el.mentionMenu.getBoundingClientRect();
-                const itemRect = active.getBoundingClientRect();
-                if (itemRect.top < menuRect.top || itemRect.bottom > menuRect.bottom) {
-                    active.scrollIntoView({ block: 'nearest' });
-                }
-            } catch (_) {
-                active.scrollIntoView();
+            const menu = el.mentionMenu; if (!menu) return;
+            const active = menu.querySelector('.mention-item.active'); if (!active) return;
+            const itemTop = active.offsetTop;
+            const itemBottom = itemTop + active.offsetHeight;
+            const viewTop = menu.scrollTop;
+            const viewBottom = viewTop + menu.clientHeight;
+            if (itemTop < viewTop) {
+                menu.scrollTop = itemTop;
+            } else if (itemBottom > viewBottom) {
+                menu.scrollTop = itemBottom - menu.clientHeight;
             }
         }
 
