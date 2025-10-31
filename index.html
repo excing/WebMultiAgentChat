@@ -1465,6 +1465,56 @@
         </div>
     </div>
 
+    <!-- 角色上下文设置（仅当前群） -->
+    <div class="modal" id="contextModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>角色上下文设置（仅当前群聊） - <span id="contextAgentName"></span></h3>
+            </div>
+            <form id="contextForm">
+                <div class="form-group">
+                    <label>我能看见谁</label>
+                    <div class="config-toggle">
+                        <label style="margin:0; display:flex; gap:12px; align-items:center;">
+                            <input type="radio" name="seeMode" value="all" checked> 所有
+                            <input type="radio" name="seeMode" value="custom"> 自定义
+                        </label>
+                    </div>
+                    <div class="checkbox-list" id="contextICanSeeList" style="display:none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>谁能看见我</label>
+                    <div class="config-toggle">
+                        <label style="margin:0; display:flex; gap:12px; align-items:center;">
+                            <input type="radio" name="seenMode" value="all" checked> 所有
+                            <input type="radio" name="seenMode" value="custom"> 自定义
+                        </label>
+                    </div>
+                    <div class="checkbox-list" id="contextCanSeeMeList" style="display:none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>视野（消息上下文）</label>
+                    <select id="contextVisionType">
+                        <option value="all">所有消息</option>
+                        <option value="last1">最近一条消息</option>
+                        <option value="custom">自定义规则</option>
+                    </select>
+                </div>
+                <div class="form-group" id="contextVisionExprWrap" style="display:none;">
+                    <label>自定义规则（messages[...]），示例：[0,3,4,5] [1:4] [9:] [:0] [:] [-4:-1] [9,0]</label>
+                    <input type="text" id="contextVisionExpr" placeholder="例如：[1:4] 或 [9:] 或 [0,3,4,5]">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelContextBtn">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script type="module">
         const qs = (s, r=document) => r.querySelector(s);
         const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
@@ -1547,6 +1597,15 @@
             agentModal: qs('#agentModal'),
             agentModalTitle: qs('#agentModalTitle'),
             agentList: qs('#agentList'),
+            contextModal: qs('#contextModal'),
+            contextForm: qs('#contextForm'),
+            contextAgentName: qs('#contextAgentName'),
+            contextICanSeeList: qs('#contextICanSeeList'),
+            contextCanSeeMeList: qs('#contextCanSeeMeList'),
+            contextVisionType: qs('#contextVisionType'),
+            contextVisionExprWrap: qs('#contextVisionExprWrap'),
+            contextVisionExpr: qs('#contextVisionExpr'),
+            cancelContextBtn: qs('#cancelContextBtn'),
             
             toggleSidebarBtn: qs('#toggleSidebarBtn'),
             themeToggleBtn: qs('#themeToggleBtn'),
@@ -1987,6 +2046,7 @@
             el.agentList.addEventListener('click', (e) => {
                 const deleteBtn = e.target.closest('[data-action="delete-agent"]');
                 const removeBtn = e.target.closest('[data-action="remove-from-group"]');
+                const ctxBtn = e.target.closest('[data-action="agent-context"]');
                 if (deleteBtn) {
                     e.stopPropagation();
                     deleteAgent(parseInt(deleteBtn.dataset.index));
@@ -1997,6 +2057,12 @@
                     removeAgentFromCurrentGroup(removeBtn.dataset.agentId);
                     return;
                 }
+                if (ctxBtn) {
+                    e.stopPropagation();
+                    const id = ctxBtn.getAttribute('data-agent-id');
+                    openContextModal(id);
+                    return;
+                }
                 const item = e.target.closest('.agent-item');
                 if (item) {
                     const id = item.getAttribute('data-agent-id');
@@ -2004,6 +2070,24 @@
                     if (idx !== -1) editAgent(idx);
                 }
             });
+
+            if (el.contextVisionType) {
+                el.contextVisionType.addEventListener('change', () => {
+                    const show = el.contextVisionType.value === 'custom';
+                    el.contextVisionExprWrap.style.display = show ? '' : 'none';
+                });
+            }
+            if (el.cancelContextBtn) {
+                el.cancelContextBtn.addEventListener('click', () => {
+                    closeContextModal();
+                });
+            }
+            if (el.contextForm) {
+                el.contextForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    saveContextSettings();
+                });
+            }
 
             el.groupList.addEventListener('click', (e) => {
                 const moreBtn = e.target.closest('[data-action="group-more"]');
@@ -2133,8 +2217,10 @@
                 const config = resolveAgentConfig(agent, globalSettings);
                 const idx = agents.findIndex(a => a.id === agent.id);
                 const actions = isAll
-                    ? `<button class="icon-btn icon-btn-danger" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
-                    : `<button class="icon-btn icon-btn-danger" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
+                    ? `<button class="icon-btn" title="上下文设置" aria-label="上下文设置" data-action="agent-context" data-agent-id="${agent.id}">⚙️</button>
+                       <button class="icon-btn icon-btn-danger" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
+                    : `<button class="icon-btn" title="上下文设置" aria-label="上下文设置" data-action="agent-context" data-agent-id="${agent.id}">⚙️</button>
+                       <button class="icon-btn icon-btn-danger" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
                 return `
                     <div class="item agent-item" data-agent-id="${agent.id}">
                         <div class="item-header">
@@ -2148,6 +2234,82 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        function openContextModal(agentId) {
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+            const agent = agents.find(a => a.id === agentId);
+            if (!agent) return;
+            const settings = getAgentGroupSettings(group, agentId);
+            el.contextAgentName.textContent = agent.name;
+
+            // Build member lists
+            const members = (group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(Boolean);
+            const makeList = (container, selected) => {
+                container.innerHTML = members.map(m => {
+                    const checked = Array.isArray(selected) ? selected.includes(m.id) : false;
+                    return `<div class="checkbox-item"><input type="checkbox" id="ctx_${container.id}_${m.id}" value="${m.id}" ${checked?'checked':''}><label for="ctx_${container.id}_${m.id}" style="margin:0;"><span class="agent-color" style="background:${m.color}"></span>${m.name}</label></div>`;
+                }).join('');
+            };
+
+            // iCanSee
+            const seeMode = (settings.perspective?.iCanSee === 'all') ? 'all' : 'custom';
+            qsa('input[name="seeMode"]').forEach(r=>{ r.checked = (r.value===seeMode); });
+            el.contextICanSeeList.style.display = seeMode==='custom' ? '' : 'none';
+            makeList(el.contextICanSeeList, seeMode==='custom' ? (settings.perspective?.iCanSee||[]) : []);
+
+            // canSeeMe
+            const seenMode = (settings.perspective?.canSeeMe === 'all') ? 'all' : 'custom';
+            qsa('input[name="seenMode"]').forEach(r=>{ r.checked = (r.value===seenMode); });
+            el.contextCanSeeMeList.style.display = seenMode==='custom' ? '' : 'none';
+            makeList(el.contextCanSeeMeList, seenMode==='custom' ? (settings.perspective?.canSeeMe||[]) : []);
+
+            // vision
+            const v = settings.vision || { type:'all' };
+            el.contextVisionType.value = v.type || 'all';
+            el.contextVisionExpr.value = v.expr || '';
+            el.contextVisionExprWrap.style.display = (v.type==='custom') ? '' : 'none';
+
+            // toggle handlers for radios
+            qsa('input[name="seeMode"]').forEach(r=>{
+                r.onchange = () => { el.contextICanSeeList.style.display = r.value==='custom' && r.checked ? '' : 'none'; };
+            });
+            qsa('input[name="seenMode"]').forEach(r=>{
+                r.onchange = () => { el.contextCanSeeMeList.style.display = r.value==='custom' && r.checked ? '' : 'none'; };
+            });
+
+            el.contextForm.dataset.agentId = agentId;
+            el.contextModal.classList.add('active');
+        }
+
+        function closeContextModal() {
+            el.contextModal.classList.remove('active');
+            el.contextForm.removeAttribute('data-agent-id');
+        }
+
+        function saveContextSettings() {
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+            const agentId = el.contextForm.dataset.agentId;
+            if (!agentId) return;
+            const settings = getAgentGroupSettings(group, agentId);
+
+            const seeMode = (qsa('input[name="seeMode"]').find(r=>r.checked)?.value) || 'all';
+            const seenMode = (qsa('input[name="seenMode"]').find(r=>r.checked)?.value) || 'all';
+            if (seeMode === 'all') settings.perspective.iCanSee = 'all';
+            else settings.perspective.iCanSee = Array.from(el.contextICanSeeList.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
+
+            if (seenMode === 'all') settings.perspective.canSeeMe = 'all';
+            else settings.perspective.canSeeMe = Array.from(el.contextCanSeeMeList.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
+
+            const vt = el.contextVisionType.value || 'all';
+            settings.vision.type = vt;
+            settings.vision.expr = (vt==='custom') ? (el.contextVisionExpr.value || '') : '';
+
+            saveData();
+            closeContextModal();
+            showToast('已保存上下文设置', 'success');
         }
 
         function renderGroups() {
@@ -2294,6 +2456,7 @@
             const group = groups.find(g => g.id === groupId);
             
             if (!group) return;
+            if (!group.agentSettings) group.agentSettings = {};
 
             // 记住上次进入的群聊
             localStorage.setItem('lastGroupId_v1', groupId);
@@ -3038,44 +3201,7 @@
         async function getAgentResponse(group, agent) {
             try {
                 const config = resolveAgentConfig(agent, globalSettings);
-                
-                const historySource = group.messages.filter(m => m.role !== 'system');
-                const conversationHistory = historySource.map(msg => {
-                    if (msg.role === 'user') {
-                        return { role: 'user', content: `[${globalSettings.userName}]: ${msg.content}` };
-                    } else {
-                        const msgAgent = agents.find(a => a.id === msg.agentId);
-                        const agentName = msgAgent ? msgAgent.name : '未知';
-                        
-                        if (msg.agentId === agent.id) {
-                            // 自己的历史消息保持 assistant
-                            return { 
-                                role: 'assistant', 
-                                content: `[${agentName}]: ${msg.content}` 
-                            };
-                        } else {
-                            // 其他 AI 的消息转为 user
-                            return { 
-                                role: 'user', 
-                                content: `[${agentName}]: ${msg.content}` 
-                            };
-                        }
-                    }
-                });
-
-                const otherAgents = group.agentIds
-                    .map(id => agents.find(a => a.id === id))
-                    .filter(a => a && a.id !== agent.id)
-                    .map(a => a.name)
-                    .join(', ');
-
-                const role = `请你以你的身份自然地回复对话。禁止项: 禁止在回复里出现你的名字。
-----
-[输出规则] 格式纯净性 (Format Purity): 你的所有回复都必须直接以内容开始。严禁在回复的开头添加任何形式的身份标识、名称或前缀，例如 '[${agent.name}]:'、'${agent.name}:' 或 '[AI]:'。`
-                conversationHistory.unshift({
-                    role: 'system',
-                    content: `你的名字是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。` + role
-                });
+                const conversationHistory = buildHistoryForAgentInGroup(agent, group);
 
                 const msgId = generateId();
                 const assistantMessage = {
@@ -3086,6 +3212,16 @@
                     timestamp: Date.now(),
                     status: 'streaming'
                 };
+                // 可见性：谁能看见我（仅限本群）
+                const ctx = getAgentGroupSettings(group, agent.id);
+                const canSeeMe = (ctx.perspective?.canSeeMe ?? 'all');
+                if (canSeeMe === 'all') {
+                    assistantMessage.visibleToAgentIds = 'all';
+                } else {
+                    const allow = new Set((Array.isArray(canSeeMe) ? canSeeMe : []).filter(id => (group.agentIds||[]).includes(id)));
+                    allow.add(agent.id);
+                    assistantMessage.visibleToAgentIds = Array.from(allow);
+                }
                 group.messages.push(assistantMessage);
                 const msgIndex = group.messages.length - 1;
                 saveData();
@@ -3283,6 +3419,139 @@
                     el.agentModel.value = desired;
                 }
             }
+        }
+
+        // ==== Per-group Context Settings (Perspective & Vision) ====
+        function ensureGroupAgentSettings(group) {
+            if (!group.agentSettings) group.agentSettings = {};
+            return group.agentSettings;
+        }
+        function getAgentGroupSettings(group, agentId) {
+            const map = ensureGroupAgentSettings(group);
+            if (!map[agentId]) {
+                map[agentId] = {
+                    perspective: { iCanSee: 'all', canSeeMe: 'all' },
+                    vision: { type: 'all' }
+                };
+            } else {
+                const p = map[agentId].perspective || (map[agentId].perspective = { iCanSee: 'all', canSeeMe: 'all' });
+                if (!p.iCanSee) p.iCanSee = 'all';
+                if (!p.canSeeMe) p.canSeeMe = 'all';
+                const v = map[agentId].vision || (map[agentId].vision = { type: 'all' });
+                if (!v.type) v.type = 'all';
+            }
+            return map[agentId];
+        }
+        function resolveGroupPerspective(agentId, group) {
+            const s = getAgentGroupSettings(group, agentId);
+            const gi = new Set(group.agentIds || []);
+            let seen = new Set();
+            if (s.perspective?.iCanSee === 'all') {
+                seen = new Set(gi);
+            } else if (Array.isArray(s.perspective?.iCanSee)) {
+                seen = new Set((s.perspective.iCanSee || []).filter(id => gi.has(id)));
+            }
+            seen.add(agentId);
+            return seen;
+        }
+        function messageVisibleToViewer(msg, viewerId) {
+            if (msg.role !== 'assistant') return true;
+            const vis = msg.visibleToAgentIds;
+            if (!vis || vis === 'all') return true;
+            if (Array.isArray(vis)) return vis.includes(viewerId);
+            return true;
+        }
+        function parseVisionExpr(expr, len) {
+            // Returns array of indices (ascending, unique). If invalid, return full range [0..len-1]
+            try {
+                const s = String(expr || '').trim();
+                if (!s.startsWith('[') || !s.endsWith(']')) throw new Error('bad');
+                const inner = s.slice(1, -1).trim();
+                if (inner.includes(':')) {
+                    // slice form [start:end]
+                    const [a, b] = inner.split(':');
+                    let start = a.trim() === '' ? 0 : parseInt(a.trim(), 10);
+                    let endRaw = b.trim();
+                    let end;
+                    if (endRaw === '') end = len; else if (endRaw === '0') end = len; else end = parseInt(endRaw, 10);
+                    if (isNaN(start)) start = 0;
+                    if (start < 0) start = len + start;
+                    if (isNaN(end)) end = len;
+                    if (end < 0) end = len + end;
+                    start = Math.max(0, Math.min(len, start));
+                    end = Math.max(0, Math.min(len, end));
+                    if (end <= start) return [];
+                    return Array.from({ length: end - start }, (_, i) => start + i);
+                } else if (inner.length === 0) {
+                    return Array.from({ length: len }, (_, i) => i);
+                } else {
+                    // list form [i1,i2,...] with special sugar [n,0] => [n:len]
+                    const parts = inner.split(',').map(t => t.trim()).filter(t => t.length > 0);
+                    if (parts.length === 2 && parts[1] === '0') {
+                        let n = parseInt(parts[0], 10);
+                        if (isNaN(n)) n = 0;
+                        if (n < 0) n = len + n;
+                        n = Math.max(0, Math.min(len, n));
+                        return Array.from({ length: len - n }, (_, i) => n + i);
+                    }
+                    const set = new Set();
+                    for (const t of parts) {
+                        let v = parseInt(t, 10);
+                        if (isNaN(v)) continue;
+                        if (v < 0) v = len + v;
+                        if (v >= 0 && v < len) set.add(v);
+                    }
+                    return Array.from(set).sort((a, b) => a - b);
+                }
+            } catch (_) {
+                return Array.from({ length: len }, (_, i) => i);
+            }
+        }
+        function buildHistoryForAgentInGroup(agent, group) {
+            const nonSystem = (group.messages || []).filter(m => m.role !== 'system');
+            const settings = getAgentGroupSettings(group, agent.id);
+            let indices;
+            if (!settings.vision || settings.vision.type === 'all') {
+                indices = Array.from({ length: nonSystem.length }, (_, i) => i);
+            } else if (settings.vision.type === 'last1') {
+                indices = nonSystem.length > 0 ? [nonSystem.length - 1] : [];
+            } else if (settings.vision.type === 'custom') {
+                indices = parseVisionExpr(settings.vision.expr, nonSystem.length);
+            } else {
+                indices = Array.from({ length: nonSystem.length }, (_, i) => i);
+            }
+            const base = indices.map(i => nonSystem[i]).filter(Boolean);
+            const canSee = resolveGroupPerspective(agent.id, group);
+            const filtered = base.filter(m => {
+                if (m.role === 'user') return true;
+                if (m.role === 'assistant') {
+                    if (!canSee.has(m.agentId)) return false;
+                    return messageVisibleToViewer(m, agent.id);
+                }
+                return false;
+            });
+            const mapped = filtered.map(msg => {
+                if (msg.role === 'user') {
+                    return { role: 'user', content: `[${globalSettings.userName}]: ${msg.content}` };
+                } else {
+                    const msgAgent = agents.find(a => a.id === msg.agentId);
+                    const agentName = msgAgent ? msgAgent.name : '未知';
+                    if (msg.agentId === agent.id) {
+                        return { role: 'assistant', content: `[${agentName}]: ${msg.content}` };
+                    } else {
+                        return { role: 'user', content: `[${agentName}]: ${msg.content}` };
+                    }
+                }
+            });
+            const otherNames = (group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(a=>a&&a.id!==agent.id).map(a=>a.name).join(', ');
+            const rule = `请你以你的身份自然地回复对话。禁止项: 禁止在回复里出现你的名字。
+----
+[输出规则] 格式纯净性 (Format Purity): 你的所有回复都必须直接以内容开始。严禁在回复的开头添加任何形式的身份标识、名称或前缀，例如 '[${agent.name}]:'、'${agent.name}:' 或 '[AI]:'.`;
+            mapped.unshift({
+                role: 'system',
+                content: `你的名字是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherNames ? ', ' + otherNames : ''}。` + rule
+            });
+            return mapped;
         }
 
         function isMobileView() {
