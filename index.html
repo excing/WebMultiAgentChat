@@ -351,6 +351,16 @@
             word-break: break-word;
         }
 
+        /* 消息状态标签 */
+        .message-status {
+            margin-left: 6px;
+            padding: 2px 6px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 12px;
+            color: color-mix(in oklab, var(--text) 60%, transparent);
+        }
+
         /* 更轻量的流式加载外观 */
         .message.streaming { margin-bottom: 10px; }
         .message.streaming .message-header { display: none; }
@@ -1486,6 +1496,7 @@
         };
 
         let openaiClients = {};
+        const inflight = new Map(); // msgId -> { ac, stream? }
 
         const el = {
             userSettingsBtn: qs('#userSettingsBtn'),
@@ -1924,8 +1935,16 @@
             });
             window.addEventListener('resize', () => { if (mentionState.open) positionMentionMenu(); });
 
-            // 聊天区头像点击：打开对应角色编辑（仅 assistant 消息头像带有 data-agent-id）
+            // 聊天区交互：取消、头像点击
             el.chatMessages.addEventListener('click', (e) => {
+                const cancelBtn = e.target.closest('[data-action="cancel-msg"]');
+                if (cancelBtn) {
+                    const msgId = cancelBtn.getAttribute('data-msg-id');
+                    const run = inflight.get(msgId);
+                    try { run?.stream?.controller?.abort?.(); } catch (_) {}
+                    if (run?.ac) run.ac.abort();
+                    return;
+                }
                 // welcome-actions 快捷操作
                 if (e.target.closest('#welcomeSettingsBtn')) { openUserSettingsModal(); return; }
                 if (e.target.closest('#welcomeCreateAgentBtn')) { openAgentModal(); return; }
@@ -2177,6 +2196,11 @@
                 return;
             }
 
+            const statusTag = (s) => {
+                if (!s) return '';
+                return s === 'streaming' ? '生成中…' : s === 'canceled' ? '已中止' : s === 'empty' ? '无内容' : s === 'error' ? '出错' : '';
+            };
+
             el.chatMessages.innerHTML = group.messages.map(msg => {
                 if (msg.role === 'system') {
                     const lvl = msg.level || 'info';
@@ -2192,13 +2216,24 @@
                 const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
                 const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
                 const name = isUser ? globalSettings.userName : (agent ? agent.name : '未知');
-                const contentHTML = isUser
-                    ? `<div class="message-text">${escapeHtml(msg.content)}</div>`
-                    : renderGroupedBubbles(msg.content);
+                let contentHTML;
+                if (isUser) {
+                    contentHTML = `<div class="message-text">${escapeHtml(msg.content)}</div>`;
+                } else {
+                    const st = msg.status || 'done';
+                    const text = (msg.content || '');
+                    if (st === 'streaming' && text.trim() === '') {
+                        contentHTML = `<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span> <span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`;
+                    } else if (st === 'empty') {
+                        contentHTML = `<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span></div></div>`;
+                    } else {
+                        contentHTML = renderGroupedBubbles(text);
+                    }
+                }
                 const dataAgentAttr = (!isUser && agent) ? `data-agent-id="${agent.id}"` : '';
                 
                 return `
-                    <div class="message ${isUser ? 'user' : ''}">
+                    <div class="message ${isUser ? 'user' : ''}" ${msg.id ? `data-msg-id="${msg.id}"` : ''}>
                         <div class="message-avatar" ${dataAgentAttr} style="background: ${color}">
                             ${name.charAt(0).toUpperCase()}
                         </div>
@@ -2206,6 +2241,8 @@
                             <div class="message-header">
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
+                                ${(!isUser && statusTag(msg.status)) ? `<span class="message-status">${statusTag(msg.status)}</span>` : ''}
+                                ${(!isUser && msg.status === 'streaming' && msg.id) ? `<button class="btn btn-secondary" data-action="cancel-msg" data-msg-id="${msg.id}">停止</button>` : ''}
                             </div>
                             ${contentHTML}
                         </div>
@@ -3040,25 +3077,31 @@
                     content: `你的名字是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherAgents ? ', ' + otherAgents : ''}。` + role
                 });
 
+                const msgId = generateId();
                 const assistantMessage = {
+                    id: msgId,
                     role: 'assistant',
                     agentId: agent.id,
                     content: '',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    status: 'streaming'
                 };
                 group.messages.push(assistantMessage);
                 const msgIndex = group.messages.length - 1;
-                let assembled = '';
-                showStreamingMessage(agent);
+                saveData();
+                renderMessages();
 
                 const client = await getOpenAIClient(config);
+                const ac = new AbortController();
+                inflight.set(msgId, { ac });
                 const stream = await client.chat.completions.create({
                     model: config.model,
                     messages: conversationHistory,
                     temperature: config.temperature || 0.7,
                     max_tokens: config.maxTokens || 2000,
                     stream: true
-                });
+                }, { signal: ac.signal });
+                try { if (stream && stream.controller) inflight.set(msgId, { ac, stream }); } catch (_) {}
 
                 for await (const chunk of stream) {
                     let delta = chunk.choices[0]?.delta?.content;
@@ -3068,55 +3111,30 @@
                             delta = delta.trimStart();
                         }
                         content += delta;
-                        // 清理接收到的消息中的前缀（如果AI返回了[角色名]:格式）
-                        // 1. 构建正则表达式
-                        //    ^           - 匹配字符串的开头
-                        //    \[         - 匹配字面量 '['
-                        //    ${escapedName} - 插入转义后的 agent name
-                        //    \]         - 匹配字面量 ']'
-                        //    [:：]       - 匹配一个字符类：半角冒号 : 或 全角冒号 ：
-                        //    \s* - 匹配冒号后面的零个或多个空白字符（包括空格、制表符等）
-                        // const prefixRegex = new RegExp(`^\\[${agent.name}\\][:：]\\s*`);
-                        // 2. 使用 while 循环持续清理前缀
-                        //    只要 content 仍然以前缀开头，就不断替换掉它
-                        //    这可以处理 [Bot]: Hello 和 [Bot]: [Bot]: Hello 两种情况
-                        // while (prefixRegex.test(content)) {
-                        //     content = content.replace(prefixRegex, '');
-                        // }
-                        // const prefixPattern = `[${agent.name}]:`;
-                        // if (content.startsWith(prefixPattern)) {
-                        //     content = content.substring(prefixPattern.length).trimStart();
-                        // }
-                        assembled = content.trim();
                         if (group.messages[msgIndex]) group.messages[msgIndex].content = content;
-                        updateStreamingMessage(agent, content);
+                        renderMessages();
                     }
                 }
-
-                removeStreamingIndicator();
-                if (!assembled || assembled.trim() === '') {
-                    // 空响应，不保留占位消息
-                    group.messages.splice(msgIndex, 1);
-                    saveData();
-                    renderMessages();
-                    addSystemMessage(group, `角色 ${agent.name} 未返回内容`, 'info');
-                    return;
-                }
-                // 正常内容，保存渲染
+                inflight.delete(msgId);
+                const finalText = (group.messages[msgIndex]?.content || '').trim();
+                group.messages[msgIndex].status = finalText ? 'done' : 'empty';
                 saveData();
                 renderMessages();
 
             } catch (error) {
-                removeStreamingIndicator();
                 console.error('Error:', error);
-                // 移除可能预先压入但未形成内容的消息
-                const last = groups.find(g => g.id === group.id)?.messages?.slice(-1)[0];
-                if (last && last.role === 'assistant' && last.agentId === agent.id && (!last.content || last.content.trim() === '')) {
-                    group.messages.pop();
+                // 查找最后一条针对该 agent 的流式消息
+                const groupRef = groups.find(g => g.id === group.id);
+                const last = groupRef?.messages?.slice().reverse().find(m => m.role==='assistant' && m.agentId===agent.id && (m.status==='streaming' || m.status==='empty' || m.status==='done' || m.status==='error' || m.status==='canceled'));
+                if (last && last.status === 'streaming') {
+                    inflight.delete(last.id);
+                    last.status = (error?.name === 'AbortError') ? 'canceled' : 'error';
                 }
                 saveData();
                 renderMessages();
-                addSystemMessage(group, `角色 ${agent.name} 响应失败: ${error.message}`, 'error');
+                if (error?.name !== 'AbortError') {
+                    addSystemMessage(group, `角色 ${agent.name} 响应失败: ${error.message}`, 'error');
+                }
             }
         }
 
