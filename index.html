@@ -1185,6 +1185,13 @@
         .chat-header-menu {
             font-size: 16px;
         }
+
+        /* mention menu */
+        .mention-menu { position: absolute; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); max-height: 220px; overflow-y: auto; min-width: 220px; display: none; z-index: 20; }
+        .mention-item { padding: 8px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .mention-item:hover, .mention-item.active { background: var(--muted); }
+        .mention-name { font-weight: 600; }
+        .mention-role { font-size: 12px; color: color-mix(in oklab, var(--text) 55%, transparent); }
     </style>
 </head>
 <body>
@@ -1226,6 +1233,7 @@
             <div class="chat-input">
                 <textarea id="userInput" placeholder="输入消息... (Shift+Enter换行, Enter发送)" rows="2" disabled></textarea>
                 <button class="btn btn-success" id="sendBtn" disabled>发送</button>
+                <div id="mentionMenu" class="mention-menu"></div>
             </div>
             <button id="scrollToBottomBtn" class="scroll-bottom-btn" aria-label="置底" title="置底">⬇︎ 置底</button>
         </div>
@@ -1539,6 +1547,7 @@
             chatMessages: qs('#chatMessages'),
             userInput: qs('#userInput'),
             sendBtn: qs('#sendBtn'),
+            mentionMenu: qs('#mentionMenu'),
             toastContainer: qs('#toastContainer'),
             userNameDisplay: qs('#userNameDisplay'),
             sidebarOverlay: qs('#sidebarOverlay'),
@@ -1845,10 +1854,20 @@
 
         function setupEventListeners() {
             el.userInput.addEventListener('keydown', (e) => {
+                if (mentionState.open) {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); moveMention(1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); moveMention(-1); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); chooseMention(); return; }
+                    if (e.key === 'Escape') { closeMention(); return; }
+                }
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage();
                 }
+            });
+            el.userInput.addEventListener('input', () => {
+                updateSendBtnLabel();
+                updateMention();
             });
 
             el.userSettingsBtn.addEventListener('click', openUserSettingsModal);
@@ -1889,6 +1908,21 @@
             el.sendBtn.addEventListener('mousedown', e => {
                 e.preventDefault(); // 阻止点击时让 input 失焦
             });
+            if (el.mentionMenu) {
+                el.mentionMenu.addEventListener('click', (e) => {
+                    const item = e.target.closest('.mention-item');
+                    if (!item) return;
+                    mentionState.selected = parseInt(item.getAttribute('data-index')) || 0;
+                    chooseMention();
+                });
+            }
+            document.addEventListener('click', (e) => {
+                if (!el.mentionMenu) return;
+                if (mentionState.open && !el.mentionMenu.contains(e.target) && e.target !== el.userInput) {
+                    closeMention();
+                }
+            });
+            window.addEventListener('resize', () => { if (mentionState.open) positionMentionMenu(); });
 
             // 聊天区头像点击：打开对应角色编辑（仅 assistant 消息头像带有 data-agent-id）
             el.chatMessages.addEventListener('click', (e) => {
@@ -2236,6 +2270,8 @@
             el.sendBtn.disabled = false;
             el.editGroupBtn.disabled = !!group.isAllAgentsGroup;
             el.clearChatBtn.disabled = false;
+            updateSendBtnLabel();
+            closeMention();
             
             shouldAutoScroll = true;
 
@@ -2565,8 +2601,27 @@
 
         async function sendMessage() {
             const content = el.userInput.value.trim();
-            
-            if (!content || !currentGroupId) return;
+            if (!currentGroupId) return;
+            if (!content) {
+                const group = groups.find(g => g.id === currentGroupId);
+                if (!group || group.isAllAgentsGroup) return;
+                if (group.autoReply) {
+                    const mode = group.autoReplyMode || 'round_robin';
+                    if (mode === 'round_robin') {
+                        await startGroupChatRoundRobin(group);
+                    } else if (mode === 'random') {
+                        await startGroupChatRandom(group);
+                    } else {
+                        await startGroupChatAISelector(group);
+                    }
+                } else {
+                    const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
+                    if (groupAgents.length > 0) {
+                        await getAgentResponse(group, groupAgents[0]);
+                    }
+                }
+                return;
+            }
             
             const group = groups.find(g => g.id === currentGroupId);
             if (!group) return;
@@ -2605,6 +2660,145 @@
                     await getAgentResponse(group, groupAgents[0]);
                 }
             }
+        }
+
+        // --- Send button text ---
+        function updateSendBtnLabel() {
+            if (!el.sendBtn) return;
+            const hasText = (el.userInput?.value || '').trim().length > 0;
+            el.sendBtn.textContent = hasText ? '发送' : '继续';
+        }
+
+        // --- Mention (@) ---
+        let mentionState = { open: false, start: -1, query: '', items: [], filtered: [], selected: 0 };
+        function getCurrentMentionContext() {
+            const ta = el.userInput; if (!ta) return null;
+            const pos = ta.selectionStart || 0;
+            const text = ta.value || '';
+            const head = text.slice(0, pos);
+            const at = head.lastIndexOf('@');
+            if (at === -1) return null;
+            const segment = head.slice(at + 1);
+            if (/\s|\n|\t/.test(segment)) return null;
+            return { start: at, query: segment };
+        }
+        function updateMention() {
+            const ctx = getCurrentMentionContext();
+            if (!currentGroupId || !ctx) { closeMention(); return; }
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) { closeMention(); return; }
+            const list = group.agentIds.map(id => agents.find(a => a.id === id)).filter(Boolean);
+            const q = (ctx.query || '').toLowerCase();
+            const filtered = list.filter(a => a.name.toLowerCase().includes(q) || (a.role||'').toLowerCase().includes(q));
+            if (filtered.length === 0) { closeMention(); return; }
+            mentionState.open = true; mentionState.start = ctx.start; mentionState.query = ctx.query; mentionState.items = list; mentionState.filtered = filtered; mentionState.selected = 0;
+            renderMentionMenu();
+        }
+        function renderMentionMenu() {
+            if (!el.mentionMenu) return;
+            el.mentionMenu.innerHTML = mentionState.filtered.map((a, i) => `
+                <div class="mention-item ${i===mentionState.selected?'active':''}" data-index="${i}">
+                    <span class="agent-color" style="width:16px;height:16px;border-radius:50%;background:${a.color}"></span>
+                    <span class="mention-name">${a.name}</span>
+                    ${a.role ? `<span class="mention-role">${a.role}</span>` : ''}
+                </div>
+            `).join('');
+            el.mentionMenu.style.display = 'block';
+            positionMentionMenu();
+        }
+        function closeMention() {
+            mentionState.open = false; mentionState.start = -1; mentionState.query = ''; mentionState.filtered = []; mentionState.selected = 0;
+            if (el.mentionMenu) { el.mentionMenu.style.display = 'none'; el.mentionMenu.innerHTML = ''; }
+        }
+        function moveMention(delta) {
+            if (!mentionState.open || mentionState.filtered.length === 0) return;
+            const n = mentionState.filtered.length;
+            mentionState.selected = (mentionState.selected + delta + n) % n;
+            renderMentionMenu();
+        }
+        function chooseMention() {
+            if (!mentionState.open || mentionState.filtered.length === 0) { closeMention(); return; }
+            const ta = el.userInput; const pos = ta.selectionStart || 0; const start = mentionState.start;
+            const chosen = mentionState.filtered[mentionState.selected]; if (!chosen) { closeMention(); return; }
+            const before = ta.value.slice(0, start);
+            const after = ta.value.slice(pos);
+            const insert = '@' + chosen.name + ' ';
+            ta.value = before + insert + after;
+            const newPos = (before + insert).length;
+            ta.setSelectionRange(newPos, newPos);
+            ta.focus();
+            updateSendBtnLabel();
+            closeMention();
+        }
+
+        function positionMentionMenu() {
+            if (!el.mentionMenu || !el.userInput || !mentionState.open) return;
+            try {
+                const ta = el.userInput;
+                const caret = getTextareaCaretPosition(ta);
+                const container = ta.parentElement; // .chat-input
+                const containerRect = container.getBoundingClientRect();
+                let left = caret.left - containerRect.left;
+                let top = caret.top - containerRect.top + caret.lineHeight + 6;
+
+                // Prepare to measure menu size
+                el.mentionMenu.style.left = '0px';
+                el.mentionMenu.style.top = '0px';
+                el.mentionMenu.style.display = 'block';
+                const menuRect = el.mentionMenu.getBoundingClientRect();
+
+                // Constrain horizontally
+                const maxLeft = containerRect.width - menuRect.width - 8;
+                left = Math.max(8, Math.min(left, maxLeft));
+
+                // If bottom overflow within container, place above
+                const bottomSpace = containerRect.height - (top + menuRect.height);
+                if (bottomSpace < 8) {
+                    top = (caret.top - containerRect.top) - menuRect.height - 6;
+                }
+                top = Math.max(8, top);
+
+                el.mentionMenu.style.left = `${left}px`;
+                el.mentionMenu.style.top = `${top}px`;
+            } catch (_) {
+                // Fallback position
+                el.mentionMenu.style.left = '16px';
+                el.mentionMenu.style.top = '8px';
+            }
+        }
+
+        function getTextareaCaretPosition(ta) {
+            const pos = ta.selectionStart || 0;
+            const cs = window.getComputedStyle(ta);
+            const div = document.createElement('div');
+            const span = document.createElement('span');
+            // Mirror essential styles
+            const props = [
+                'boxSizing','width','paddingTop','paddingRight','paddingBottom','paddingLeft',
+                'borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth',
+                'fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','textTransform','textAlign','lineHeight','tabSize'
+            ];
+            div.style.position = 'absolute';
+            div.style.visibility = 'hidden';
+            div.style.zIndex = '-9999';
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.wordWrap = 'break-word';
+            props.forEach(p => { div.style[p] = cs[p]; });
+            div.style.width = ta.clientWidth + 'px';
+            // Mirror content up to caret
+            const before = (ta.value || '').substring(0, pos).replace(/\n/g, '\n');
+            div.textContent = before;
+            span.textContent = '\u200b';
+            div.appendChild(span);
+            document.body.appendChild(div);
+            const spanRect = span.getBoundingClientRect();
+            const divRect = div.getBoundingClientRect();
+            const taRect = ta.getBoundingClientRect();
+            const left = taRect.left + (spanRect.left - divRect.left) - ta.scrollLeft + window.scrollX;
+            const top = taRect.top + (spanRect.top - divRect.top) - ta.scrollTop + window.scrollY;
+            const lineHeight = parseFloat(cs.lineHeight) || 18;
+            document.body.removeChild(div);
+            return { left, top, lineHeight };
         }
 
         async function startGroupChatRoundRobin(group) {
