@@ -2739,7 +2739,6 @@
                 const container = ta.parentElement; // .chat-input
                 const containerRect = container.getBoundingClientRect();
                 let left = caret.left - containerRect.left;
-                let top = caret.top - containerRect.top + caret.lineHeight + 6;
 
                 // Prepare to measure menu size
                 el.mentionMenu.style.left = '0px';
@@ -2747,23 +2746,32 @@
                 el.mentionMenu.style.display = 'block';
                 const menuRect = el.mentionMenu.getBoundingClientRect();
 
-                // Constrain horizontally
-                const maxLeft = containerRect.width - menuRect.width - 8;
-                left = Math.max(8, Math.min(left, maxLeft));
+                // Decide above/below by viewport space at caret
+                const viewportBottomSpace = window.innerHeight - caret.top;
+                const shouldPlaceBelow = viewportBottomSpace >= (menuRect.height + 12);
+                let top = shouldPlaceBelow
+                    ? (caret.top - containerRect.top + caret.lineHeight + 6)
+                    : (caret.top - containerRect.top - menuRect.height - 6);
 
-                // If bottom overflow within container, place above
-                const bottomSpace = containerRect.height - (top + menuRect.height);
-                if (bottomSpace < 8) {
-                    top = (caret.top - containerRect.top) - menuRect.height - 6;
+                // Constrain horizontally within container
+                const maxLeft = containerRect.width - menuRect.width - 8;
+                left = Math.max(8, Math.min(left, Math.max(8, maxLeft)));
+
+                // Allow negative top so the menu can render above the chat-input when needed
+                // But avoid going off the very top of the viewport
+                const absoluteTop = top + containerRect.top; // viewport coords
+                const minViewportTop = 8;
+                if (absoluteTop < minViewportTop) {
+                    const delta = minViewportTop - absoluteTop;
+                    top += delta;
                 }
-                top = Math.max(8, top);
 
                 el.mentionMenu.style.left = `${left}px`;
                 el.mentionMenu.style.top = `${top}px`;
             } catch (_) {
                 // Fallback position
                 el.mentionMenu.style.left = '16px';
-                el.mentionMenu.style.top = '8px';
+                el.mentionMenu.style.top = '-8px';
             }
         }
 
