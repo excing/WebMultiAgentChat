@@ -2705,6 +2705,7 @@
             `).join('');
             el.mentionMenu.style.display = 'block';
             positionMentionMenu();
+            scrollActiveMentionIntoView();
         }
         function closeMention() {
             mentionState.open = false; mentionState.start = -1; mentionState.query = ''; mentionState.filtered = []; mentionState.selected = 0;
@@ -2807,6 +2808,21 @@
             const lineHeight = parseFloat(cs.lineHeight) || 18;
             document.body.removeChild(div);
             return { left, top, lineHeight };
+        }
+
+        function scrollActiveMentionIntoView() {
+            if (!el.mentionMenu) return;
+            const active = el.mentionMenu.querySelector('.mention-item.active');
+            if (!active) return;
+            try {
+                const menuRect = el.mentionMenu.getBoundingClientRect();
+                const itemRect = active.getBoundingClientRect();
+                if (itemRect.top < menuRect.top || itemRect.bottom > menuRect.bottom) {
+                    active.scrollIntoView({ block: 'nearest' });
+                }
+            } catch (_) {
+                active.scrollIntoView();
+            }
         }
 
         async function startGroupChatRoundRobin(group) {
