@@ -2295,6 +2295,7 @@
 
         function saveAgent() {
             const useGlobal = el.agentUseGlobal.checked;
+            const isEdit = currentEditingAgent !== null;
             
             const agent = {
                 id: currentEditingAgent !== null ? agents[currentEditingAgent].id : generateId(),
@@ -2336,6 +2337,7 @@
             renderAgents();
             renderGroups();
             if (currentGroupId) renderMessages();
+            showToast(isEdit ? '保存成功' : '创建成功', 'success');
             closeAgentModal();
         }
 
@@ -2496,7 +2498,8 @@
                 messages: currentEditingGroup !== null ? groups[currentEditingGroup].messages : []
             };
 
-            if (currentEditingGroup !== null) {
+            const isEdit = currentEditingGroup !== null;
+            if (isEdit) {
                 groups[currentEditingGroup] = group;
             } else {
                 groups.push(group);
@@ -2506,6 +2509,7 @@
             renderGroups();
             autoSelectFirstGroupIfNone();
             if (currentGroupId === group.id) selectGroup(group.id);
+            showToast(isEdit ? '保存成功' : '创建成功', 'success');
             closeGroupModal();
         }
 
