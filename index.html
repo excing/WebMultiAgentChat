@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多AI角色群聊</title>
+    <!-- Vditor for Markdown preview -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.css" />
+    <script src="https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -347,8 +350,8 @@
             color: #333;
             line-height: 1.5;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            white-space: pre-wrap;
-            word-break: break-word;
+            /* white-space: pre-wrap; */
+            /* word-break: break-word; */
         }
 
         /* 消息状态标签 */
@@ -1088,6 +1091,13 @@
         .message-text pre, .message-text code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
         .message-text pre { background: var(--control-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow: auto; }
         .message-text code { background: color-mix(in oklab, var(--muted) 60%, transparent); padding: 0 4px; border-radius: 6px; }
+
+        /* Ensure Vditor preview inherits bubble style */
+        .message-text .vditor-reset { background: transparent; color: inherit; }
+        .message-text .vditor-reset p,
+        .message-text .vditor-reset ul,
+        .message-text .vditor-reset ol { margin: 0; }
+        .message-text .vditor-reset pre { background: var(--control-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
 
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
@@ -2367,7 +2377,7 @@
                 const name = isUser ? globalSettings.userName : (agent ? agent.name : '未知');
                 let contentHTML;
                 if (isUser) {
-                    contentHTML = `<div class="message-text">${escapeHtml(msg.content)}</div>`;
+                    contentHTML = `<div class="message-text" data-md-enc="${encodeURIComponent(msg.content||'')}"></div>`;
                 } else {
                     const st = msg.status || 'done';
                     const text = (msg.content || '');
@@ -2398,6 +2408,8 @@
                     </div>
                 `;
             }).join('');
+            // Convert markdown to HTML (Vditor)
+            renderMarkdown(el.chatMessages);
             
             if (shouldAutoScroll) {
                 if (shouldAutoScroll) {
@@ -2429,12 +2441,26 @@
                 }
             }
             if (buf.length) out.push(buf.join('\n').trimEnd());
-            return out.filter(p => p.trim() !== '');
+            return out.filter(p => p.trim() !== '' && !/^[-]{2,}$/.test(p.trim()));
+        }
+
+        // Render markdown content inside message bubbles using Vditor
+        function renderMarkdown(root = el.chatMessages) {
+            if (!root) return;
+            qsa('.message-text[data-md-enc]', root).forEach(n => {
+                const md = decodeURIComponent(n.getAttribute('data-md-enc') || '');
+                n.removeAttribute('data-md-enc');
+                if (window.Vditor && typeof window.Vditor.preview === 'function') {
+                    Vditor.preview(n, md, { });
+                } else {
+                    n.textContent = md;
+                }
+            });
         }
 
         function renderGroupedBubbles(text) {
             const paras = splitIntoParagraphs(text);
-            const html = paras.map(p => `<div class="message-text">${escapeHtml(p)}</div>`).join('');
+            const html = paras.map(p => `<div class="message-text" data-md-enc="${encodeURIComponent(p)}"></div>`).join('');
             return `<div class="message-bubbles">${html || '<div class="message-text"></div>'}</div>`;
         }
 
@@ -3340,67 +3366,6 @@
             group.messages.push({ role: 'system', content, level, timestamp: Date.now() });
             saveData();
             renderMessages();
-        }
-
-        function showStreamingMessage(agent) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message streaming';
-            messageDiv.id = 'streamingMessage';
-            messageDiv.innerHTML = `
-                <div class="message-avatar" style="background: ${agent.color}">
-                    ${agent.name.charAt(0).toUpperCase()}
-                </div>
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-name">${agent.name}</span>
-                        <span class="message-time" id="streamingTime">${formatTime(Date.now())}</span>
-                    </div>
-                    <div class="message-bubbles" id="streamingBubbles">
-                        <div class="message-text" id="streamingBubble">
-                            <span class="typing-indicator"><span></span><span></span><span></span></span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            el.chatMessages.appendChild(messageDiv);
-            if (shouldAutoScroll) {
-                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
-            }
-        }
-
-        function updateStreamingMessage(agent, content) {
-            const wrap = qs('#streamingBubbles');
-            if (wrap) {
-                const paras = splitIntoParagraphs(content);
-                if (paras.length === 0) {
-                    wrap.innerHTML = `<div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div>`;
-                } else {
-                    wrap.innerHTML = paras.map(p => `<div class="message-text">${escapeHtml(p)}</div>`).join('');
-                }
-                const container = wrap.closest('.message');
-                if (container && container.classList.contains('streaming') && content.trim().length > 0) {
-                    container.classList.remove('streaming');
-                }
-                if (shouldAutoScroll) {
-                    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
-                }
-                return;
-            }
-            // 兼容旧结构
-            const streamingContent = qs('#streamingContent');
-            if (streamingContent) {
-                streamingContent.textContent = content;
-                const container = streamingContent.closest('.message');
-                if (container && container.classList.contains('streaming') && content.trim().length > 0) {
-                    container.classList.remove('streaming');
-                }
-                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
-            }
-        }
-
-        function removeStreamingIndicator() {
-            const indicator = qs('#streamingMessage');
-            if (indicator) indicator.remove();
         }
 
         function clearChat() {
