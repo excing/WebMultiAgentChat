@@ -1340,7 +1340,7 @@
     <div class="modal" id="agentModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="agentModalTitle">创建角色</h3>
+                    <h3 id="agentModalTitle">创建角色</h3>
             </div>
             <form id="agentForm">
                 <div class="form-group">
@@ -1401,6 +1401,44 @@
                         <label>Max Tokens</label>
                         <input type="number" id="agentMaxTokens" min="1" max="32000" value="2000">
                     </div>
+                </div>
+
+                <div class="section-divider"></div>
+                <h3>权限（仅当前群聊）</h3>
+                <div class="form-group">
+                    <label>我能看见谁</label>
+                    <div class="config-toggle">
+                        <label style="margin:0; display:flex; gap:12px; align-items:center;">
+                            <input type="radio" name="permSeeMode" value="all" checked> 所有
+                            <input type="radio" name="permSeeMode" value="custom"> 自定义
+                        </label>
+                    </div>
+                    <div class="checkbox-list" id="permICanSeeList" style="display:none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>谁能看见我</label>
+                    <div class="config-toggle">
+                        <label style="margin:0; display:flex; gap:12px; align-items:center;">
+                            <input type="radio" name="permSeenMode" value="all" checked> 所有
+                            <input type="radio" name="permSeenMode" value="custom"> 自定义
+                        </label>
+                    </div>
+                    <div class="checkbox-list" id="permCanSeeMeList" style="display:none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>视野（消息上下文）</label>
+                    <select id="permVisionType">
+                        <option value="all">所有消息</option>
+                        <option value="last1">最近一条消息</option>
+                        <option value="custom">自定义规则</option>
+                    </select>
+                </div>
+                <div class="form-group" id="permVisionExprWrap" style="display:none;">
+                    <label>自定义规则（直接填写索引与范围，示例：1,2,8:0 或 -4:-1 或 9: 或 :0 或 1,3,-2）</label>
+                    <input type="text" id="permVisionExpr" placeholder="例如：1,2,8:0 或 -4:-1">
+                    <div id="permVisionError" style="display:none; color:#b91c1c; font-size:12px; margin-top:6px;"></div>
                 </div>
 
                 <div class="modal-actions">
@@ -1465,55 +1503,7 @@
         </div>
     </div>
 
-    <!-- 角色上下文设置（仅当前群） -->
-    <div class="modal" id="contextModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>角色上下文设置（仅当前群聊） - <span id="contextAgentName"></span></h3>
-            </div>
-            <form id="contextForm">
-                <div class="form-group">
-                    <label>我能看见谁</label>
-                    <div class="config-toggle">
-                        <label style="margin:0; display:flex; gap:12px; align-items:center;">
-                            <input type="radio" name="seeMode" value="all" checked> 所有
-                            <input type="radio" name="seeMode" value="custom"> 自定义
-                        </label>
-                    </div>
-                    <div class="checkbox-list" id="contextICanSeeList" style="display:none;"></div>
-                </div>
-
-                <div class="form-group">
-                    <label>谁能看见我</label>
-                    <div class="config-toggle">
-                        <label style="margin:0; display:flex; gap:12px; align-items:center;">
-                            <input type="radio" name="seenMode" value="all" checked> 所有
-                            <input type="radio" name="seenMode" value="custom"> 自定义
-                        </label>
-                    </div>
-                    <div class="checkbox-list" id="contextCanSeeMeList" style="display:none;"></div>
-                </div>
-
-                <div class="form-group">
-                    <label>视野（消息上下文）</label>
-                    <select id="contextVisionType">
-                        <option value="all">所有消息</option>
-                        <option value="last1">最近一条消息</option>
-                        <option value="custom">自定义规则</option>
-                    </select>
-                </div>
-                <div class="form-group" id="contextVisionExprWrap" style="display:none;">
-                    <label>自定义规则（messages[...]），示例：[0,3,4,5] [1:4] [9:] [:0] [:] [-4:-1] [9,0]</label>
-                    <input type="text" id="contextVisionExpr" placeholder="例如：[1:4] 或 [9:] 或 [0,3,4,5]">
-                </div>
-
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" id="cancelContextBtn">取消</button>
-                    <button type="submit" class="btn btn-primary">保存</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    
 
     <script type="module">
         const qs = (s, r=document) => r.querySelector(s);
@@ -1597,15 +1587,12 @@
             agentModal: qs('#agentModal'),
             agentModalTitle: qs('#agentModalTitle'),
             agentList: qs('#agentList'),
-            contextModal: qs('#contextModal'),
-            contextForm: qs('#contextForm'),
-            contextAgentName: qs('#contextAgentName'),
-            contextICanSeeList: qs('#contextICanSeeList'),
-            contextCanSeeMeList: qs('#contextCanSeeMeList'),
-            contextVisionType: qs('#contextVisionType'),
-            contextVisionExprWrap: qs('#contextVisionExprWrap'),
-            contextVisionExpr: qs('#contextVisionExpr'),
-            cancelContextBtn: qs('#cancelContextBtn'),
+            permICanSeeList: qs('#permICanSeeList'),
+            permCanSeeMeList: qs('#permCanSeeMeList'),
+            permVisionType: qs('#permVisionType'),
+            permVisionExprWrap: qs('#permVisionExprWrap'),
+            permVisionExpr: qs('#permVisionExpr'),
+            permVisionError: qs('#permVisionError'),
             
             toggleSidebarBtn: qs('#toggleSidebarBtn'),
             themeToggleBtn: qs('#themeToggleBtn'),
@@ -2046,7 +2033,6 @@
             el.agentList.addEventListener('click', (e) => {
                 const deleteBtn = e.target.closest('[data-action="delete-agent"]');
                 const removeBtn = e.target.closest('[data-action="remove-from-group"]');
-                const ctxBtn = e.target.closest('[data-action="agent-context"]');
                 if (deleteBtn) {
                     e.stopPropagation();
                     deleteAgent(parseInt(deleteBtn.dataset.index));
@@ -2057,12 +2043,6 @@
                     removeAgentFromCurrentGroup(removeBtn.dataset.agentId);
                     return;
                 }
-                if (ctxBtn) {
-                    e.stopPropagation();
-                    const id = ctxBtn.getAttribute('data-agent-id');
-                    openContextModal(id);
-                    return;
-                }
                 const item = e.target.closest('.agent-item');
                 if (item) {
                     const id = item.getAttribute('data-agent-id');
@@ -2071,22 +2051,14 @@
                 }
             });
 
-            if (el.contextVisionType) {
-                el.contextVisionType.addEventListener('change', () => {
-                    const show = el.contextVisionType.value === 'custom';
-                    el.contextVisionExprWrap.style.display = show ? '' : 'none';
+            if (el.permVisionType) {
+                el.permVisionType.addEventListener('change', () => {
+                    const show = el.permVisionType.value === 'custom';
+                    el.permVisionExprWrap.style.display = show ? '' : 'none';
                 });
             }
-            if (el.cancelContextBtn) {
-                el.cancelContextBtn.addEventListener('click', () => {
-                    closeContextModal();
-                });
-            }
-            if (el.contextForm) {
-                el.contextForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    saveContextSettings();
-                });
+            if (el.permVisionExpr) {
+                el.permVisionExpr.addEventListener('input', validatePermVisionExprLive);
             }
 
             el.groupList.addEventListener('click', (e) => {
@@ -2217,10 +2189,8 @@
                 const config = resolveAgentConfig(agent, globalSettings);
                 const idx = agents.findIndex(a => a.id === agent.id);
                 const actions = isAll
-                    ? `<button class="icon-btn" title="上下文设置" aria-label="上下文设置" data-action="agent-context" data-agent-id="${agent.id}">⚙️</button>
-                       <button class="icon-btn icon-btn-danger" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
-                    : `<button class="icon-btn" title="上下文设置" aria-label="上下文设置" data-action="agent-context" data-agent-id="${agent.id}">⚙️</button>
-                       <button class="icon-btn icon-btn-danger" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
+                    ? `<button class="icon-btn icon-btn-danger" title="删除" aria-label="删除" data-action="delete-agent" data-index="${idx}">🗑️</button>`
+                    : `<button class="icon-btn icon-btn-danger" title="移除" aria-label="移除" data-action="remove-from-group" data-agent-id="${agent.id}">🗑️</button>`;
                 return `
                     <div class="item agent-item" data-agent-id="${agent.id}">
                         <div class="item-header">
@@ -2526,6 +2496,32 @@
             }
             el.agentModel.value = agent.model || globalSettings.model;
             setAgentConfigPlaceholders();
+            // 权限（仅当前群）
+            const group = groups.find(g => g.id === currentGroupId);
+            if (group) {
+                const s = getAgentGroupSettings(group, agent.id);
+                // members list
+                const members = (group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(Boolean);
+                const buildList = (container, selectedArr) => {
+                    container.innerHTML = members.map(m => `<div class="checkbox-item"><input type="checkbox" id="perm_${container.id}_${m.id}" value="${m.id}" ${Array.isArray(selectedArr)&&selectedArr.includes(m.id)?'checked':''}><label for="perm_${container.id}_${m.id}" style="margin:0;"><span class="agent-color" style="background:${m.color}"></span>${m.name}</label></div>`).join('');
+                };
+                // iCanSee
+                const seeMode = (s.perspective?.iCanSee==='all')?'all':'custom';
+                qsa('input[name="permSeeMode"]').forEach(r=>{ r.checked = (r.value===seeMode); });
+                el.permICanSeeList.style.display = seeMode==='custom' ? '' : 'none';
+                buildList(el.permICanSeeList, seeMode==='custom' ? (s.perspective?.iCanSee||[]) : []);
+                // canSeeMe
+                const seenMode = (s.perspective?.canSeeMe==='all')?'all':'custom';
+                qsa('input[name="permSeenMode"]').forEach(r=>{ r.checked = (r.value===seenMode); });
+                el.permCanSeeMeList.style.display = seenMode==='custom' ? '' : 'none';
+                buildList(el.permCanSeeMeList, seenMode==='custom' ? (s.perspective?.canSeeMe||[]) : []);
+                // vision
+                const v = s.vision || { type:'all' };
+                el.permVisionType.value = v.type || 'all';
+                el.permVisionExpr.value = v.expr || '';
+                el.permVisionExprWrap.style.display = (v.type==='custom') ? '' : 'none';
+                if (el.permVisionError) { el.permVisionError.style.display = 'none'; el.permVisionError.textContent = ''; }
+            }
             el.agentModal.classList.add('active');
         }
 
@@ -2572,6 +2568,27 @@
             saveData();
             renderAgents();
             renderGroups();
+            // 保存权限到当前群
+            if (currentGroupId) {
+                const group = groups.find(g => g.id === currentGroupId);
+                if (group) {
+                    const s = getAgentGroupSettings(group, agent.id);
+                    const seeMode = (qsa('input[name="permSeeMode"]').find(r=>r.checked)?.value)||'all';
+                    const seenMode = (qsa('input[name="permSeenMode"]').find(r=>r.checked)?.value)||'all';
+                    if (seeMode==='all') s.perspective.iCanSee='all';
+                    else s.perspective.iCanSee = Array.from(el.permICanSeeList.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
+                    if (seenMode==='all') s.perspective.canSeeMe='all';
+                    else s.perspective.canSeeMe = Array.from(el.permCanSeeMeList.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
+                    const vt = el.permVisionType.value || 'all';
+                    if (vt==='custom') {
+                        const err = validatePermVisionExprLive();
+                        if (err) { showToast('自定义视野规则无效：'+err, 'warning'); return; }
+                        s.vision.type = 'custom'; s.vision.expr = el.permVisionExpr.value || '';
+                    } else if (vt==='last1') { s.vision.type='last1'; s.vision.expr=''; }
+                    else { s.vision.type='all'; s.vision.expr=''; }
+                    saveData();
+                }
+            }
             if (currentGroupId) renderMessages();
             showToast(isEdit ? '保存成功' : '创建成功', 'success');
             closeAgentModal();
@@ -3462,50 +3479,73 @@
             return true;
         }
         function parseVisionExpr(expr, len) {
-            // Returns array of indices (ascending, unique). If invalid, return full range [0..len-1]
-            try {
-                const s = String(expr || '').trim();
-                if (!s.startsWith('[') || !s.endsWith(']')) throw new Error('bad');
-                const inner = s.slice(1, -1).trim();
-                if (inner.includes(':')) {
-                    // slice form [start:end]
-                    const [a, b] = inner.split(':');
-                    let start = a.trim() === '' ? 0 : parseInt(a.trim(), 10);
-                    let endRaw = b.trim();
-                    let end;
-                    if (endRaw === '') end = len; else if (endRaw === '0') end = len; else end = parseInt(endRaw, 10);
-                    if (isNaN(start)) start = 0;
-                    if (start < 0) start = len + start;
-                    if (isNaN(end)) end = len;
-                    if (end < 0) end = len + end;
-                    start = Math.max(0, Math.min(len, start));
-                    end = Math.max(0, Math.min(len, end));
-                    if (end <= start) return [];
-                    return Array.from({ length: end - start }, (_, i) => start + i);
-                } else if (inner.length === 0) {
-                    return Array.from({ length: len }, (_, i) => i);
-                } else {
-                    // list form [i1,i2,...] with special sugar [n,0] => [n:len]
-                    const parts = inner.split(',').map(t => t.trim()).filter(t => t.length > 0);
-                    if (parts.length === 2 && parts[1] === '0') {
-                        let n = parseInt(parts[0], 10);
-                        if (isNaN(n)) n = 0;
+            // New syntax: tokens like "1,2,8:0" or "-4:-1" or "9:" or ":0" or "1,3,-2"
+            // Returns indices asc unique; on empty/invalid -> full range
+            const full = Array.from({ length: len }, (_, i) => i);
+            const s = String(expr || '').trim();
+            if (!s) return full;
+            const tokens = s.split(',').map(t => t.trim()).filter(Boolean);
+            const out = new Set();
+            let hadError = false;
+            const toIdx = (v) => {
+                let n = parseInt(v, 10);
+                if (isNaN(n)) { hadError = true; return null; }
+                if (n < 0) n = len + n;
+                if (n < 0 || n >= len) { hadError = true; return null; }
+                return n;
+            };
+            for (const tk of tokens) {
+                if (tk.includes(':')) {
+                    const [a, b] = tk.split(':');
+                    // start
+                    let start;
+                    if (a.trim() === '') start = 0; else {
+                        let n = parseInt(a.trim(), 10);
+                        if (isNaN(n)) { hadError = true; continue; }
                         if (n < 0) n = len + n;
-                        n = Math.max(0, Math.min(len, n));
-                        return Array.from({ length: len - n }, (_, i) => n + i);
+                        start = n;
                     }
-                    const set = new Set();
-                    for (const t of parts) {
-                        let v = parseInt(t, 10);
-                        if (isNaN(v)) continue;
-                        if (v < 0) v = len + v;
-                        if (v >= 0 && v < len) set.add(v);
+                    // endExclusive
+                    let endExc;
+                    if (b.trim() === '' || b.trim() === '0') endExc = len; else {
+                        let n = parseInt(b.trim(), 10);
+                        if (isNaN(n)) { hadError = true; continue; }
+                        if (n < 0) n = len + n;
+                        endExc = n;
                     }
-                    return Array.from(set).sort((a, b) => a - b);
+                    start = Math.max(0, Math.min(len, start));
+                    endExc = Math.max(0, Math.min(len, endExc));
+                    if (endExc <= start) { hadError = true; continue; }
+                    for (let i = start; i < endExc; i++) out.add(i);
+                } else {
+                    const idx = toIdx(tk);
+                    if (idx !== null) out.add(idx);
                 }
-            } catch (_) {
-                return Array.from({ length: len }, (_, i) => i);
             }
+            if (out.size === 0) return hadError ? full : [];
+            return Array.from(out).sort((a,b)=>a-b);
+        }
+
+        function validatePermVisionExprLive() {
+            if (!el.permVisionExpr) return '';
+            const val = el.permVisionExpr.value || '';
+            const group = groups.find(g => g.id === currentGroupId);
+            const nonSystemLen = (group?.messages||[]).filter(m=>m.role!=='system').length;
+            let error = '';
+            try {
+                const idxs = parseVisionExpr(val, nonSystemLen);
+                // rudimentary detection: if input non-empty and result equals full but had error is not exposed.
+                // We'll re-validate tokens format with regex.
+                const bad = val.split(',').map(t=>t.trim()).filter(Boolean).some(t=>!/^[-]?\d+$|^[-]?\d*:\s*[-]?\d*$/.test(t));
+                if (bad) error = '格式错误：仅支持数字或 a:b 形式（支持负数），用逗号分隔';
+            } catch (_) {
+                error = '解析失败：请检查语法';
+            }
+            if (el.permVisionError) {
+                el.permVisionError.textContent = error;
+                el.permVisionError.style.display = error ? '' : 'none';
+            }
+            return error;
         }
         function buildHistoryForAgentInGroup(agent, group) {
             const nonSystem = (group.messages || []).filter(m => m.role !== 'system');
