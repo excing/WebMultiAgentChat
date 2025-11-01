@@ -1088,16 +1088,22 @@
         .toast-close { color: color-mix(in oklab, var(--text) 50%, transparent); }
         .toast-close:hover { color: var(--text); }
 
-        .message-text pre, .message-text code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
-        .message-text pre { background: var(--control-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow: auto; }
-        .message-text code { background: color-mix(in oklab, var(--muted) 60%, transparent); padding: 0 4px; border-radius: 6px; }
+        /* .message-text pre, .message-text code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+        .message-text pre {  border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow: auto; }
+        .message-text code {  padding: 0 4px; border-radius: 6px; } */
 
         /* Ensure Vditor preview inherits bubble style */
-        .message-text .vditor-reset { background: transparent; color: inherit; }
-        .message-text .vditor-reset p,
-        .message-text .vditor-reset ul,
-        .message-text .vditor-reset ol { margin: 0; }
-        .message-text .vditor-reset pre { background: var(--control-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+        .message-text.vditor-reset { background: transparent; color: inherit; }
+        .message-text.vditor-reset p,
+        .message-text.vditor-reset ul,
+        .message-text.vditor-reset ol { margin-bottom: 0.25em; }
+        .message-text.vditor-reset ul,
+        .message-text.vditor-reset ol { padding-left: 1.15em; }
+        /* .message-text.vditor-reset pre { border: 1px solid var(--border); border-radius: 10px; padding: 10px; } */
+        .message-text.vditor-reset code { max-height: 100% !important;}
+        /* 选择 SVG 内的 text */
+        .message-text.vditor-reset svg text { fill: var(--text) !important; }
+        .message-text.vditor-reset svg line { stroke: var(--text) !important; }
 
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
