@@ -2185,7 +2185,19 @@
             }
 
             const isAll = group.isAllAgentsGroup === true;
-            el.agentList.innerHTML = list.map((agent) => {
+            // prepend current user as a pseudo member on top
+            const userItemHtml = `
+                <div class="item" data-user-entry="true">
+                    <div class="item-header">
+                        <div class="item-name">
+                            <span class="agent-color" style="background: #667eea"></span>
+                            ${escapeHtml(globalSettings.userName)} <span class="role-muted">(用户)</span>
+                        </div>
+                        <div class="item-actions" style="margin-top:0;"></div>
+                    </div>
+                </div>`;
+
+            const agentsHtml = list.map((agent) => {
                 const config = resolveAgentConfig(agent, globalSettings);
                 const idx = agents.findIndex(a => a.id === agent.id);
                 const actions = isAll
@@ -2204,6 +2216,7 @@
                     </div>
                 `;
             }).join('');
+            el.agentList.innerHTML = userItemHtml + agentsHtml;
         }
 
         function openContextModal(agentId) {
@@ -2459,6 +2472,30 @@
             toggleAgentConfig();
             el.agentModel.value = globalSettings.model;
             setAgentConfigPlaceholders();
+            // 初始化权限（仅当前群）
+            const group = groups.find(g => g.id === currentGroupId);
+            if (group) {
+                // 新建时默认 all
+                qsa('input[name="permSeeMode"]').forEach(r=>{ r.checked = (r.value==='all'); });
+                qsa('input[name="permSeenMode"]').forEach(r=>{ r.checked = (r.value==='all'); });
+                el.permICanSeeList.style.display = 'none';
+                el.permCanSeeMeList.style.display = 'none';
+                el.permVisionType.value = 'all';
+                el.permVisionExpr.value = '';
+                el.permVisionExprWrap.style.display = 'none';
+                if (el.permVisionError) { el.permVisionError.style.display = 'none'; el.permVisionError.textContent=''; }
+                // 预构建群成员列表（包含用户在首位）
+                const members = [{ id: '__user__', name: globalSettings.userName, color: '#667eea' }]
+                    .concat((group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(Boolean));
+                const buildList = (container) => {
+                    container.innerHTML = members.map(m => `<div class="checkbox-item"><input type="checkbox" id="perm_${container.id}_${m.id}" value="${m.id}"><label for="perm_${container.id}_${m.id}" style="margin:0;"><span class="agent-color" style="background:${m.color||'#667eea'}"></span>${escapeHtml(m.name)}</label></div>`).join('');
+                };
+                buildList(el.permICanSeeList);
+                buildList(el.permCanSeeMeList);
+                // 切换事件（自定义时显示列表，若为空则重建）
+                qsa('input[name="permSeeMode"]').forEach(r=>{ r.onchange = ()=>{ el.permICanSeeList.style.display = (r.value==='custom'&&r.checked)?'':''; if (el.permICanSeeList.innerHTML.trim()==='') buildList(el.permICanSeeList); }; });
+                qsa('input[name="permSeenMode"]').forEach(r=>{ r.onchange = ()=>{ el.permCanSeeMeList.style.display = (r.value==='custom'&&r.checked)?'':''; if (el.permCanSeeMeList.innerHTML.trim()==='') buildList(el.permCanSeeMeList); }; });
+            }
             el.agentModal.classList.add('active');
         }
 
@@ -2501,18 +2538,19 @@
             if (group) {
                 const s = getAgentGroupSettings(group, agent.id);
                 // members list
-                const members = (group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(Boolean);
+                const members = [{ id: '__user__', name: globalSettings.userName, color: '#667eea' }]
+                    .concat((group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(Boolean));
                 const buildList = (container, selectedArr) => {
-                    container.innerHTML = members.map(m => `<div class="checkbox-item"><input type="checkbox" id="perm_${container.id}_${m.id}" value="${m.id}" ${Array.isArray(selectedArr)&&selectedArr.includes(m.id)?'checked':''}><label for="perm_${container.id}_${m.id}" style="margin:0;"><span class="agent-color" style="background:${m.color}"></span>${m.name}</label></div>`).join('');
+                    container.innerHTML = members.map(m => `<div class="checkbox-item"><input type="checkbox" id="perm_${container.id}_${m.id}" value="${m.id}" ${Array.isArray(selectedArr)&&selectedArr.includes(m.id)?'checked':''}><label for="perm_${container.id}_${m.id}" style="margin:0;"><span class="agent-color" style="background:${m.color||'#667eea'}"></span>${escapeHtml(m.name)}</label></div>`).join('');
                 };
                 // iCanSee
                 const seeMode = (s.perspective?.iCanSee==='all')?'all':'custom';
-                qsa('input[name="permSeeMode"]').forEach(r=>{ r.checked = (r.value===seeMode); });
+                qsa('input[name=\"permSeeMode\"]').forEach(r=>{ r.checked = (r.value===seeMode); r.onchange = ()=>{ el.permICanSeeList.style.display = (r.value==='custom'&&r.checked)?'':''; if (el.permICanSeeList.innerHTML.trim()==='') buildList(el.permICanSeeList, []); }; });
                 el.permICanSeeList.style.display = seeMode==='custom' ? '' : 'none';
                 buildList(el.permICanSeeList, seeMode==='custom' ? (s.perspective?.iCanSee||[]) : []);
                 // canSeeMe
                 const seenMode = (s.perspective?.canSeeMe==='all')?'all':'custom';
-                qsa('input[name="permSeenMode"]').forEach(r=>{ r.checked = (r.value===seenMode); });
+                qsa('input[name=\"permSeenMode\"]').forEach(r=>{ r.checked = (r.value===seenMode); r.onchange = ()=>{ el.permCanSeeMeList.style.display = (r.value==='custom'&&r.checked)?'':''; if (el.permCanSeeMeList.innerHTML.trim()==='') buildList(el.permCanSeeMeList, []); }; });
                 el.permCanSeeMeList.style.display = seenMode==='custom' ? '' : 'none';
                 buildList(el.permCanSeeMeList, seenMode==='custom' ? (s.perspective?.canSeeMe||[]) : []);
                 // vision
