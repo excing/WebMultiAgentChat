@@ -6,7 +6,7 @@
     <title>多AI角色群聊</title>
     <!-- Vditor for Markdown preview -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.css" />
-    <script src="https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/method.js"></script>
     <style>
         * {
             margin: 0;
@@ -96,6 +96,50 @@
             margin-bottom: 10px;
             color: #333;
             font-size: 16px;
+        }
+
+        /* 同样，只针对外部链接 */
+        /*
+        * 这是一个智能选择器，它会匹配所有满足以下条件的 <a> 标签：
+        * 1. 链接在新窗口打开 (target="_blank")
+        * 2. 或者是 "http" 或 "https" 开头的绝对路径
+        * 3. 并且 (AND) 链接的域名 *不是* "your-website.com" (请替换成您自己的域名)
+        * * 这样可以确保只为“真正的”外部链接添加图标，而内部链接不受影响。
+        */
+        /* a[target="_blank"],
+        a[href^="http"]:not([href*="your-website.com"]), */
+        a {
+            /* 为图标流出空间 */
+            padding-right: 1.3em; 
+            /* 将图标定位到右侧 */
+            position: relative; 
+            color: var(--text);
+            text-decoration: auto;
+        }
+
+        /* a:not([href*="your-website.com"])::after, */
+        a::after {
+            /* 1. 创建一个空内容的伪元素 */
+            content: '';
+            
+            /* 2. 设置图标尺寸 (使用 em 单位，使其随字体大小缩放) */
+            width: 1em;
+            height: 1em;
+
+            /* 3. 定位到 padding-right 留出的空间中 */
+            position: absolute;
+            right: 0.25em;
+            bottom: 0.05em; /* 可微调垂直位置 */
+
+            /* 4. 关键：使用 currentColor 填充，使其颜色与 <a> 标签一致 */
+            background-color: currentColor; 
+
+            /* 5. 关键：使用内联的 SVG 作为蒙版 (这是一个标准的“外部链接”图标) */
+            mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6v2H5v11h11v-6h2Z'/%3E%3Cpath fill-rule='evenodd' d='M15 3h6v6h-2V5.414l-7.293 7.293-1.414-1.414L17.586 4H15V3Z'/%3E%3C/svg%3E");
+            
+            /* 确保蒙版被正确缩放 */
+            mask-size: contain;
+            mask-repeat: no-repeat;
         }
 
         .user-bar {
@@ -350,8 +394,8 @@
             color: #333;
             line-height: 1.5;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            /* white-space: pre-wrap; */
-            /* word-break: break-word; */
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         /* 消息状态标签 */
@@ -977,6 +1021,7 @@
             --text: hsl(224 71% 4%);
             --muted: hsl(220 14% 96%);
             --border: hsl(220 13% 91%);
+            --table-bg: hsl(220 14% 95%);
 
             --brand: hsl(246 83% 60%);
             --brand-contrast: hsl(0 0% 100%);
@@ -1012,6 +1057,7 @@
                 --text: hsl(0 0% 98%);
                 --muted: hsl(224 14% 16%);
                 --border: hsl(224 14% 22%);
+                --table-bg: hsl(224 14% 3%);
                 --control-bg: hsl(224 14% 16%);
 
                 --shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
@@ -1093,17 +1139,44 @@
         .message-text code {  padding: 0 4px; border-radius: 6px; } */
 
         /* Ensure Vditor preview inherits bubble style */
-        .message-text.vditor-reset { background: transparent; color: inherit; }
+        .message-text.vditor-reset { color: var(--text); white-space: normal; word-break: normal; }
         .message-text.vditor-reset p,
         .message-text.vditor-reset ul,
         .message-text.vditor-reset ol { margin-bottom: 0.25em; }
         .message-text.vditor-reset ul,
         .message-text.vditor-reset ol { padding-left: 1.15em; }
         /* .message-text.vditor-reset pre { border: 1px solid var(--border); border-radius: 10px; padding: 10px; } */
+        .message-text.vditor-reset pre { margin: 0; max-width: 100%; overflow: auto;}
         .message-text.vditor-reset code { max-height: 100% !important;}
-        /* 选择 SVG 内的 text */
+        /* 选择 SVG 内的 text 和 line */
         .message-text.vditor-reset svg text { fill: var(--text) !important; }
-        .message-text.vditor-reset svg line { stroke: var(--text) !important; }
+        .message-text.vditor-reset svg line,
+        .message-text.vditor-reset svg path,
+        .message-text.vditor-reset svg rect,
+        .message-text.vditor-reset svg circle,
+        .message-text.vditor-reset svg polygon,
+        .message-text.vditor-reset svg ellipse,
+        .message-text.vditor-reset svg polyline { stroke: var(--text) !important; }
+
+        /* 折线图背景 */
+        .message-text.vditor-reset svg g.main rect.background { fill: var(--muted); }
+
+        /* ABC 语言样式保持原样 wheat*/
+        .message-text.vditor-reset .language-abc { background: wheat; }
+        .message-text.vditor-reset .language-abc svg text { fill: initial !important; }
+        .message-text.vditor-reset .language-abc svg path,
+        .message-text.vditor-reset .language-abc svg rect {
+            /* * "initial" 关键字将样式重置为浏览器的默认值。
+            * 您也可以使用 "unset"（恢复继承）或特定的颜色（如 'black'）。
+            * 因为原始规则有 !important，这里也必须有 !important 才能覆盖它。
+            */
+            stroke: initial !important;
+        }
+
+        /* 表格样式 */
+        .message-text.vditor-reset thead tr { background: color-mix(in oklab, var(--table-bg) 90%, transparent); }
+        .message-text.vditor-reset tbody tr { background: color-mix(in oklab, var(--table-bg) 15%, transparent); }
+        .message-text.vditor-reset tbody tr:nth-child(2n) { background: color-mix(in oklab, var(--table-bg) 45%, transparent); }
 
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
@@ -1114,6 +1187,7 @@
             --text: hsl(224 71% 4%);
             --muted: hsl(220 14% 96%);
             --border: hsl(220 13% 91%);
+            --table-bg: hsl(220 14% 95%);
             --control-bg: hsl(0 0% 100%);
             --bubble-bg-ai: var(--panel);
             --bubble-bg-user: color-mix(in oklab, var(--brand) 18%, var(--panel));
@@ -1135,6 +1209,7 @@
             --text: hsl(0 0% 98%);
             --muted: hsl(224 14% 16%);
             --border: hsl(224 14% 22%);
+            --table-bg: hsl(224 14% 3%);
             --control-bg: hsl(224 14% 16%);
             --bubble-bg-ai: hsl(224 14% 16%);
             --bubble-bg-user: color-mix(in oklab, var(--brand) 26%, var(--panel));
@@ -2344,6 +2419,84 @@
             }).join('');
         }
 
+        // key: message content hash
+        // value: message markdown element
+        const messageElementCache = new Map();
+
+        const hash = (text) => {
+            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(buf => {
+                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            });
+        }
+
+        const createElement = (html) => {
+            // 接收一个 html 文本, 返回一个 html 节点元素
+            // 比如 html = <div class="message-text">Hello</div>"
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            return temp.firstElementChild;
+        }
+
+        const createMarkdownElement = (id, text) => {
+            const key = id;
+            const mdel = messageElementCache.has(key) ? messageElementCache.get(key) : createElement(`<div class="message-text" data-md-enc="">${text}</div>`);
+            const textencode = encodeURIComponent(text||'');
+            // 获取 el 的 data-md-enc 值
+            const mdencode = mdel.getAttribute('data-md-enc') || "";
+            if (textencode !== mdencode) {
+                mdel.setAttribute('data-md-enc', textencode);
+                Vditor.preview(mdel, autoCloseCodeBlock(text.trim()), {
+                    hljs: {
+                        enable: true,
+                        style: globalSettings.themeMode === "dark" ? "base16/dracula" : "github"
+                    },
+                    after: () => {
+                        if (shouldAutoScroll) {
+                            el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+                        }
+                    }
+                });
+                messageElementCache.set(key, mdel);
+            }
+            return mdel;
+        }
+
+        /**
+         * 检查并自动闭合未完成的Markdown代码块 (```).
+         *
+         * @param {string} text - 需要检查的原始文本.
+         * @returns {string} - 如果代码块未闭合，则返回追加了闭合符的文本；否则返回原文本.
+         */
+        function autoCloseCodeBlock(text) {
+            // 1. 参数校验：确保输入是字符串
+            if (typeof text !== 'string') {
+                console.error("Input must be a string.");
+                return text;
+            }
+
+            // 2. 使用正则表达式全局匹配 (g) '```' 的所有出现
+            //    text.match(/```/g) 会返回一个包含所有匹配项的数组，
+            //    如果一次也没匹配到，它会返回 null.
+            const matches = text.match(/```/g);
+
+            // 3. 计算匹配次数
+            //    如果 matches 为 null (0次匹配)，则次数为 0.
+            //    否则，次数就是匹配数组的长度.
+            const count = matches ? matches.length : 0;
+
+            // 4. 核心逻辑：检查奇偶性
+            //    如果 count 是奇数 (例如 1, 3, 5...)，说明有一个 '```' 没有配对.
+            if (count % 2 !== 0) {
+                // 5. 追加闭合符.
+                //    我们通常在闭合符前加一个换行符 '\n'，以确保格式正确，
+                //    防止它直接拼接到最后一行代码上。
+                return text + '\n```';
+            }
+
+            // 6. 如果 count 是偶数 (0, 2, 4...)，说明所有代码块都已闭合或没有代码块.
+            return text;
+        }
+
         function renderMessages() {
             const group = groups.find(g => g.id === currentGroupId);
             
@@ -2366,38 +2519,41 @@
                 return s === 'streaming' ? '生成中…' : s === 'canceled' ? '已中止' : s === 'empty' ? '无内容' : s === 'error' ? '出错' : '';
             };
 
-            el.chatMessages.innerHTML = group.messages.map(msg => {
+            // 1. 创建一个空白的文档片段 (在内存中)
+            const fragment = document.createDocumentFragment();
+
+            const messageElements = group.messages.map(msg => {
                 if (msg.role === 'system') {
                     const lvl = msg.level || 'info';
                     const sel = globalSettings.systemMsgLevel || 'all';
                     if (sel !== 'all' && lvl !== sel) return '';
-                    return `
+                    return createElement(`
                         <div class="system-message system-${lvl}">
                             ${escapeHtml(msg.content)}
                         </div>
-                    `;
+                    `);
                 }
                 const isUser = msg.role === 'user';
                 const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
                 const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
                 const name = isUser ? globalSettings.userName : (agent ? agent.name : '未知');
-                let contentHTML;
+                let contentElement;
                 if (isUser) {
-                    contentHTML = `<div class="message-text" data-md-enc="${encodeURIComponent(msg.content||'')}"></div>`;
+                    contentElement = createMarkdownElement(hash(msg.content), msg.content);
                 } else {
                     const st = msg.status || 'done';
                     const text = (msg.content || '');
                     if (st === 'streaming' && text.trim() === '') {
-                        contentHTML = `<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span> <span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`;
+                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span> <span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
                     } else if (st === 'empty') {
-                        contentHTML = `<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span></div></div>`;
+                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span></div></div>`);
                     } else {
-                        contentHTML = renderGroupedBubbles(text);
+                        contentElement = renderGroupedBubbles(msg.id, text);
                     }
                 }
                 const dataAgentAttr = (!isUser && agent) ? `data-agent-id="${agent.id}"` : '';
                 
-                return `
+                const messageElement = createElement(`
                     <div class="message ${isUser ? 'user' : ''}" ${msg.id ? `data-msg-id="${msg.id}"` : ''}>
                         <div class="message-avatar" ${dataAgentAttr} style="background: ${color}">
                             ${name.charAt(0).toUpperCase()}
@@ -2409,18 +2565,20 @@
                                 ${(!isUser && statusTag(msg.status)) ? `<span class="message-status">${statusTag(msg.status)}</span>` : ''}
                                 ${(!isUser && msg.status === 'streaming' && msg.id) ? `<button class="btn btn-secondary" data-action="cancel-msg" data-msg-id="${msg.id}">停止</button>` : ''}
                             </div>
-                            ${contentHTML}
                         </div>
                     </div>
-                `;
-            }).join('');
-            // Convert markdown to HTML (Vditor)
-            renderMarkdown(el.chatMessages);
+                `);
+                // messageElement.message-content.addChild(contentHTML);                
+                qs(`.message-content`, messageElement).appendChild(contentElement);
+                return messageElement;
+            });
+
+            fragment.append(...messageElements);
+            el.chatMessages.innerHTML = '';
+            el.chatMessages.appendChild(fragment);
             
             if (shouldAutoScroll) {
-                if (shouldAutoScroll) {
-                    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
-                }
+                el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
             }
             if (el.scrollToBottomBtn) {
                 el.scrollToBottomBtn.classList.toggle('show', !isAtBottom(el.chatMessages));
@@ -2450,24 +2608,16 @@
             return out.filter(p => p.trim() !== '' && !/^[-]{2,}$/.test(p.trim()));
         }
 
-        // Render markdown content inside message bubbles using Vditor
-        function renderMarkdown(root = el.chatMessages) {
-            if (!root) return;
-            qsa('.message-text[data-md-enc]', root).forEach(n => {
-                const md = decodeURIComponent(n.getAttribute('data-md-enc') || '');
-                n.removeAttribute('data-md-enc');
-                if (window.Vditor && typeof window.Vditor.preview === 'function') {
-                    Vditor.preview(n, md, { });
-                } else {
-                    n.textContent = md;
-                }
-            });
-        }
-
-        function renderGroupedBubbles(text) {
+        function renderGroupedBubbles(id, text) {
             const paras = splitIntoParagraphs(text);
-            const html = paras.map(p => `<div class="message-text" data-md-enc="${encodeURIComponent(p)}"></div>`).join('');
-            return `<div class="message-bubbles">${html || '<div class="message-text"></div>'}</div>`;
+            const bubbles = paras.map((p, index) => createMarkdownElement(`${id}_${index}`, p));
+            const bubbleContainer = createElement(`<div class="message-bubbles"></div>`);
+            if (bubbles.length === 0) {
+                bubbleContainer.appendChild(createElement('<div class="message-text"></div>'));
+            } else {
+                bubbleContainer.append(...bubbles);
+            }
+            return bubbleContainer;
         }
 
         function selectGroup(groupId) {
