@@ -2419,9 +2419,16 @@
             }).join('');
         }
 
-        // key: message content hash
-        // value: message markdown element
+        // key -> markdown element 缓存
         const messageElementCache = new Map();
+        const MAX_CACHE = 400; // 简易 LRU 上限
+        function cacheSet(key, el) {
+            messageElementCache.set(key, el);
+            if (messageElementCache.size > MAX_CACHE) {
+                const oldest = messageElementCache.keys().next().value;
+                messageElementCache.delete(oldest);
+            }
+        }
 
         const hash = (text) => {
             return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(buf => {
@@ -2437,6 +2444,17 @@
             return temp.firstElementChild;
         }
 
+        // 单元素预览防抖
+        const previewTimers = new WeakMap();
+        function schedulePreview(el, text, opts, delay = 180) {
+            const prev = previewTimers.get(el);
+            if (prev) clearTimeout(prev);
+            const t = setTimeout(() => {
+                Vditor.preview(el, autoCloseCodeBlock(text.trim()), opts);
+            }, delay);
+            previewTimers.set(el, t);
+        }
+
         const createMarkdownElement = (id, text) => {
             const key = id;
             const mdel = messageElementCache.has(key) ? messageElementCache.get(key) : createElement(`<div class="message-text" data-md-enc="">${text}</div>`);
@@ -2445,7 +2463,7 @@
             const mdencode = mdel.getAttribute('data-md-enc') || "";
             if (textencode !== mdencode) {
                 mdel.setAttribute('data-md-enc', textencode);
-                Vditor.preview(mdel, autoCloseCodeBlock(text.trim()), {
+                const opts = {
                     hljs: {
                         enable: true,
                         style: globalSettings.themeMode === "dark" ? "base16/dracula" : "github"
@@ -2455,8 +2473,9 @@
                             el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
                         }
                     }
-                });
-                messageElementCache.set(key, mdel);
+                };
+                schedulePreview(mdel, text, opts, 180);
+                cacheSet(key, mdel);
             }
             return mdel;
         }
@@ -2539,7 +2558,8 @@
                 const name = isUser ? globalSettings.userName : (agent ? agent.name : '未知');
                 let contentElement;
                 if (isUser) {
-                    contentElement = createMarkdownElement(hash(msg.content), msg.content);
+                    if (!msg.id) { msg.id = generateId(); }
+                    contentElement = createMarkdownElement(`${msg.id}`, msg.content);
                 } else {
                     const st = msg.status || 'done';
                     const text = (msg.content || '');
@@ -3068,6 +3088,7 @@
             if (!group) return;
 
             const userMessage = {
+                id: generateId(),
                 role: 'user',
                 content: content,
                 timestamp: Date.now()
@@ -3532,6 +3553,8 @@
             const previous = Array.isArray(group.messages) ? group.messages.slice() : [];
             group.messages = [];
             saveData();
+            // 同步清理渲染缓存
+            messageElementCache.clear();
             renderMessages();
 
             let undone = false;
