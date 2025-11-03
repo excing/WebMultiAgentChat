@@ -352,6 +352,7 @@
             margin-bottom: 20px;
             display: flex;
             gap: 12px;
+            align-items: flex-start;
         }
 
         .message-avatar {
@@ -364,6 +365,9 @@
             font-weight: 600;
             color: white;
             flex-shrink: 0;
+            position: sticky;
+            top: 0px;
+            align-self: flex-start;
         }
 
         .message-content {
@@ -399,7 +403,7 @@
             word-break: break-word;
         }
 
-        /* 消息状态标签 */
+        /* 消息状态 + 操作（合并组件） */
         .message-status {
             margin-left: 6px;
             padding: 2px 6px;
@@ -407,7 +411,22 @@
             border-radius: 999px;
             font-size: 12px;
             color: color-mix(in oklab, var(--text) 60%, transparent);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
+        .message-status .ms-action {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            padding: 0 2px;
+            line-height: 1;
+            border-radius: 6px;
+            font-size: 1.5em;
+        }
+        .message-status .ms-action:hover { color: var(--text); }
 
         /* 更轻量的流式加载外观 */
         .message.streaming { margin-bottom: 10px; }
@@ -1146,6 +1165,28 @@
         .message-text.vditor-reset ol { margin-bottom: 0.25em; }
         .message-text.vditor-reset ul,
         .message-text.vditor-reset ol { padding-left: 1.15em; }
+        /* Compact, harmonious headings inside bubbles */
+        .message-text.vditor-reset h1,
+        .message-text.vditor-reset h2,
+        .message-text.vditor-reset h3,
+        .message-text.vditor-reset h4,
+        .message-text.vditor-reset h5,
+        .message-text.vditor-reset h6 { 
+            margin: 0.4em 0 0.3em; 
+            line-height: 1.3; 
+            font-weight: 700; 
+            word-break: break-word; 
+            overflow-wrap: anywhere;
+        }
+        .message-text.vditor-reset h1 { font-size: 1.25em; }
+        .message-text.vditor-reset h2 { font-size: 1.15em; }
+        .message-text.vditor-reset h3 { font-size: 1.06em; }
+        .message-text.vditor-reset h4 { font-size: 1.00em; }
+        .message-text.vditor-reset h5 { font-size: 0.95em; }
+        .message-text.vditor-reset h6 { font-size: 0.90em; letter-spacing: .02em; }
+        .message-text.vditor-reset > :first-child { margin-top: 0; }
+        .message-text.vditor-reset > :last-child { margin-bottom: 0; }
+
         /* .message-text.vditor-reset pre { border: 1px solid var(--border); border-radius: 10px; padding: 10px; } */
         /* .message-text.vditor-reset pre { margin: 0; max-width: 100%; overflow: auto;} */
         .message-text.vditor-reset code { max-height: 100% !important;}
@@ -2010,6 +2051,7 @@
                 if (mentionState.open) {
                     if (e.key === 'ArrowDown') { e.preventDefault(); moveMention(1); return; }
                     if (e.key === 'ArrowUp') { e.preventDefault(); moveMention(-1); return; }
+                    if (e.key === 'Tab') { e.preventDefault(); chooseMention(); return; }
                     if (e.key === 'Enter') { e.preventDefault(); chooseMention(); return; }
                     if (e.key === 'Escape') { closeMention(); return; }
                 }
@@ -2583,8 +2625,7 @@
                             <div class="message-header">
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
-                                ${(!isUser && statusTag(msg.status)) ? `<span class="message-status">${statusTag(msg.status)}</span>` : ''}
-                                ${(!isUser && msg.status === 'streaming' && msg.id) ? `<button class="btn btn-secondary" data-action="cancel-msg" data-msg-id="${msg.id}">停止</button>` : ''}
+                                ${(!isUser && statusTag(msg.status)) ? `<span class="message-status">${statusTag(msg.status)}${(msg.status === 'streaming' && msg.id) ? ` <button class="ms-action" data-action="cancel-msg" data-msg-id="${msg.id}" title="停止" aria-label="停止">⏹</button>` : ''}</span>` : ''}
                             </div>
                         </div>
                     </div>
