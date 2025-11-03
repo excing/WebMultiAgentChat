@@ -433,6 +433,28 @@
         .message-status .dots i:nth-child(3) { animation-delay: .4s; }
         @keyframes msDots { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-2px); opacity: 1; } }
 
+        /* 思考过程：切换按钮 + 展示区域 */
+        .ms-think-toggle {
+            appearance: none;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: color-mix(in oklab, var(--text) 60%, transparent);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .ms-think-toggle:hover { background: var(--muted); color: var(--text); }
+        .ms-think-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+        .message-thinking { margin: 2px 0 6px; font-size: 0.92em; color: color-mix(in oklab, var(--text) 70%, transparent); white-space: pre-wrap; word-break: break-word; }
+        .message-thinking.hidden { display: none; }
+
+        /* 思考中状态：闪烁的小圆点图标 */
+        .message-status .think-blink { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; animation: thinkBlink 1s infinite ease-in-out; }
+        @keyframes thinkBlink { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+
         /* 更轻量的流式加载外观 */
         .message.streaming { margin-bottom: 10px; }
         .message.streaming .message-header { display: none; }
@@ -2142,6 +2164,17 @@
                     }
                     return;
                 }
+                // 思考过程展开/折叠
+                const thinkToggle = e.target.closest('.ms-think-toggle');
+                if (thinkToggle) {
+                    const msgRoot = thinkToggle.closest('.message');
+                    const thinkEl = msgRoot ? msgRoot.querySelector('.message-thinking') : null;
+                    if (thinkEl) {
+                        const nowHidden = thinkEl.classList.toggle('hidden');
+                        thinkToggle.setAttribute('aria-expanded', (!nowHidden).toString());
+                    }
+                    return;
+                }
                 // welcome-actions 快捷操作
                 if (e.target.closest('#welcomeSettingsBtn')) { openUserSettingsModal(); return; }
                 if (e.target.closest('#welcomeCreateAgentBtn')) { openAgentModal(); return; }
@@ -2593,11 +2626,17 @@
                 if (!msg) return '';
                 const s = msg.status;
                 if (!s) return '';
+                if (s === 'thinking') {
+                    const hasThinking = ((msg.thinking || '').trim().length > 0);
+                    if (!hasThinking) return '';
+                    return `<i class="think-blink" aria-hidden="true"></i>思考中`;
+                }
+                if (s === 'loading') {
+                    return `生成中<span class="dots"><i></i><i></i><i></i></span>`;
+                }
                 if (s === 'canceled') return '已中止';
                 if (s === 'streaming') {
-                    const hasContent = (msg.content || '').trim().length > 0;
-                    const label = hasContent ? '输入中' : '生成中';
-                    return `${label}<span class="dots"><i></i><i></i><i></i></span>`;
+                    return `输入中<span class="dots"><i></i><i></i><i></i></span>`;
                 }
                 return '';
             };
@@ -2631,7 +2670,7 @@
                 } else {
                     const st = msg.status || 'done';
                     const text = (msg.content || '');
-                    if (st === 'streaming' && text.trim() === '') {
+                    if ((st === 'streaming' && text.trim() === '') || st === 'loading') {
                         // 仅显示加载指示，不显示文字
                         contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
                     } else if (st === 'empty') {
@@ -2652,12 +2691,18 @@
                             <div class="message-header">
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
+                                ${(!isUser && (msg.thinking && msg.thinking.trim())) ? `<button class=\"ms-think-toggle\" data-msg-id=\"${msg.id}\" aria-expanded=\"false\" title=\"显示/隐藏思考过程\">🧠</button>` : ''}
                                 ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${(msg.status === 'streaming' && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
                             </div>
                         </div>
                     </div>
                 `);
-                // messageElement.message-content.addChild(contentHTML);                
+                // 插入思考过程容器（位于 header 与 bubbles 之间，仅当存在思考内容）
+                if (!isUser && (msg.thinking && msg.thinking.trim())) {
+                    const thinkEl = createElement(`<div class="message-thinking hidden"></div>`);
+                    thinkEl.textContent = msg.thinking || '';
+                    qs(`.message-content`, messageElement).appendChild(thinkEl);
+                }
                 qs(`.message-content`, messageElement).appendChild(contentElement);
                 return messageElement;
             });
@@ -2707,6 +2752,38 @@
                 bubbleContainer.append(...bubbles);
             }
             return bubbleContainer;
+        }
+
+        // 将增量文本按 <think>...</think> 标签切分为“思考内容”和“可见内容”
+        function splitThinkSegments(str, inThink) {
+            let contentPart = '';
+            let thinkingPart = '';
+            let iThink = !!inThink;
+            let i = 0;
+            while (i < str.length) {
+                if (iThink) {
+                    const closeIdx = str.indexOf('</think>', i);
+                    if (closeIdx === -1) {
+                        thinkingPart += str.slice(i);
+                        i = str.length;
+                        break;
+                    }
+                    thinkingPart += str.slice(i, closeIdx);
+                    i = closeIdx + 8; // len('</think>')
+                    iThink = false;
+                } else {
+                    const openIdx = str.indexOf('<think>', i);
+                    if (openIdx === -1) {
+                        contentPart += str.slice(i);
+                        i = str.length;
+                        break;
+                    }
+                    contentPart += str.slice(i, openIdx);
+                    i = openIdx + 7; // len('<think>')
+                    iThink = true;
+                }
+            }
+            return { contentPart, thinkingPart, inThinkAfter: iThink };
         }
 
         function selectGroup(groupId) {
@@ -3541,7 +3618,8 @@
                     agentId: agent.id,
                     content: '',
                     timestamp: Date.now(),
-                    status: 'streaming'
+                    status: 'loading',
+                    thinking: ''
                 };
                 // 可见性：谁能看见我（仅限本群）
                 const ctx = getAgentGroupSettings(group, agent.id);
@@ -3560,7 +3638,7 @@
 
                 const client = await getOpenAIClient(config);
                 const ac = new AbortController();
-                inflight.set(msgId, { ac });
+                inflight.set(msgId, { ac, inThink: false });
                 const stream = await client.chat.completions.create({
                     model: config.model,
                     messages: conversationHistory,
@@ -3568,17 +3646,60 @@
                     max_tokens: config.maxTokens || 2000,
                     stream: true
                 }, { signal: ac.signal });
-                try { if (stream && stream.controller) inflight.set(msgId, { ac, stream }); } catch (_) {}
+                try { if (stream && stream.controller) {
+                    const prev = inflight.get(msgId) || { ac };
+                    inflight.set(msgId, { ...prev, stream });
+                } } catch (_) {}
 
                 for await (const chunk of stream) {
-                    let delta = chunk.choices[0]?.delta?.content;
-                    let content = group.messages[msgIndex]?.content ?? '';
-                    if (delta) {
-                        if (content === '') {
-                            delta = delta.trimStart();
+                    const d = chunk.choices?.[0]?.delta || {};
+                    let raw = d.content || '';
+                    // 兼容可能的 reasoning 字段
+                    let extraReason = '';
+                    if (typeof d.reasoning === 'string') extraReason += d.reasoning;
+                    if (Array.isArray(d.reasoning_content)) {
+                        for (const it of d.reasoning_content) {
+                            if (typeof it === 'string') extraReason += it;
+                            else if (it && typeof it.text === 'string') extraReason += it.text;
+                            else if (it && typeof it.content === 'string') extraReason += it.content;
                         }
-                        content += delta;
-                        if (group.messages[msgIndex]) group.messages[msgIndex].content = content;
+                    } else if (typeof d.reasoning_content === 'string') {
+                        extraReason += d.reasoning_content;
+                    }
+
+                    const info = inflight.get(msgId) || { ac };
+                    const parts = splitThinkSegments(raw, !!info.inThink);
+                    // 累加思考内容（包含额外 reasoning）
+                    let thinkingDelta = parts.thinkingPart + (extraReason || '');
+                    let hasThinkingAppend = false;
+                    if (thinkingDelta) {
+                        const prevThinking = group.messages[msgIndex]?.thinking || '';
+                        group.messages[msgIndex].thinking = prevThinking + thinkingDelta;
+                        hasThinkingAppend = true;
+                    }
+                    // 状态迁移
+                    let visibleDelta = parts.contentPart;
+                    const msgRef = group.messages[msgIndex];
+                    if (msgRef && msgRef.status === 'loading') {
+                        if (visibleDelta) {
+                            msgRef.status = 'streaming';
+                        } else if (thinkingDelta) {
+                            msgRef.status = 'thinking';
+                        }
+                    } else if (msgRef && msgRef.status === 'thinking') {
+                        if (visibleDelta) msgRef.status = 'streaming';
+                    }
+                    if (visibleDelta) {
+                        let content = msgRef?.content ?? '';
+                        if (content === '') {
+                            visibleDelta = visibleDelta.trimStart();
+                        }
+                        content += visibleDelta;
+                        msgRef.content = content;
+                    }
+
+                    inflight.set(msgId, { ...info, inThink: parts.inThinkAfter });
+                    if (thinkingDelta || visibleDelta) {
                         renderMessages();
                     }
                 }
@@ -3595,8 +3716,8 @@
                 console.error('Error:', error);
                 // 查找最后一条针对该 agent 的流式消息
                 const groupRef = groups.find(g => g.id === group.id);
-                const last = groupRef?.messages?.slice().reverse().find(m => m.role==='assistant' && m.agentId===agent.id && (m.status==='streaming' || m.status==='empty' || m.status==='done' || m.status==='error' || m.status==='canceled'));
-                if (last && last.status === 'streaming') {
+                const last = groupRef?.messages?.slice().reverse().find(m => m.role==='assistant' && m.agentId===agent.id && (m.status==='loading' || m.status==='thinking' || m.status==='streaming' || m.status==='empty' || m.status==='done' || m.status==='error' || m.status==='canceled'));
+                if (last && (last.status === 'streaming' || last.status === 'thinking' || last.status === 'loading')) {
                     inflight.delete(last.id);
                     last.status = (error?.name === 'AbortError') ? 'canceled' : 'error';
                 }
