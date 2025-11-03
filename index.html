@@ -448,7 +448,7 @@
         .ms-think-toggle:hover { background: var(--muted); color: var(--text); }
         .ms-think-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-        .message-thinking { margin: 2px 0 6px; font-size: 0.92em; color: color-mix(in oklab, var(--text) 70%, transparent); white-space: pre-wrap; word-break: break-word; }
+        .message-thinking { margin: 2px 0 6px; font-size: 0.85em; color: color-mix(in oklab, var(--text) 70%, transparent); white-space: pre-wrap; word-break: break-word; }
         .message-thinking.hidden { display: none; }
 
         /* 思考中状态：闪烁的小圆点图标 */
@@ -1164,8 +1164,6 @@
         .sidebar-toggle { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
         .sidebar-toggle:hover { background: var(--muted); }
         .sidebar-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-        .typing-indicator { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
 
         .form-group input, .form-group textarea, .form-group select { background: var(--control-bg); border: 1px solid var(--border); color: var(--text); border-radius: 10px; }
         .form-group input:focus-visible, .form-group textarea:focus-visible, .form-group select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--brand); }
@@ -2626,18 +2624,19 @@
                 if (!msg) return '';
                 const s = msg.status;
                 if (!s) return '';
+                const loadingHTML = `生成中<span class="dots"><i></i><i></i><i></i></span>`;
+                if (s === 'loading') {
+                    return loadingHTML;
+                }
                 if (s === 'thinking') {
                     const hasThinking = ((msg.thinking || '').trim().length > 0);
-                    if (!hasThinking) return '';
-                    return `<i class="think-blink" aria-hidden="true"></i>思考中`;
+                    if (!hasThinking) return loadingHTML;
+                    return `思考中<span class="dots"><i></i><i></i><i></i></span>`;
                 }
-                if (s === 'loading') {
-                    return `生成中<span class="dots"><i></i><i></i><i></i></span>`;
-                }
-                if (s === 'canceled') return '已中止';
                 if (s === 'streaming') {
                     return `输入中<span class="dots"><i></i><i></i><i></i></span>`;
                 }
+                if (s === 'canceled') return '已中止';
                 return '';
             };
 
@@ -2670,10 +2669,10 @@
                 } else {
                     const st = msg.status || 'done';
                     const text = (msg.content || '');
-                    if ((st === 'streaming' && text.trim() === '') || st === 'loading') {
+                    if (st === 'loading' || st === 'thinking' || st === 'streaming') {
                         // 仅显示加载指示，不显示文字
                         contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
-                    } else if (st === 'empty') {
+                    }if (st === 'empty') {
                         // 无内容时不显示加载文字
                         contentElement = createElement(`<div class="message-bubbles"><div class="message-text"></div></div>`);
                     } else {
@@ -2691,8 +2690,8 @@
                             <div class="message-header">
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
-                                ${(!isUser && (msg.thinking && msg.thinking.trim())) ? `<button class=\"ms-think-toggle\" data-msg-id=\"${msg.id}\" aria-expanded=\"false\" title=\"显示/隐藏思考过程\">🧠</button>` : ''}
-                                ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${(msg.status === 'streaming' && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
+                                ${(!isUser && (msg.thinking && msg.thinking.trim())) ? `<button class=\"ms-think-toggle\" data-msg-id=\"${msg.id}\" aria-expanded=\"false\" title=\"显示/隐藏思考过程\">🧠<i class="think-blink" aria-hidden="true"></i></button>` : ''}
+                                ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${((msg.status === 'streaming' || msg.status === 'thinking') && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
                             </div>
                         </div>
                     </div>
