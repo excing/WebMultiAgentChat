@@ -2620,10 +2620,14 @@
                 return;
             }
 
+            const progressing = (status) => {
+                return (status === 'loading' || status === 'thinking' || status === 'streaming');
+            };
+
             const statusTag = (msg) => {
                 if (!msg) return '';
                 const s = msg.status;
-                if (!s) return '';
+                if (!s) return 'ERROR(01)';
                 const loadingHTML = `生成中<span class="dots"><i></i><i></i><i></i></span>`;
                 if (s === 'loading') {
                     return loadingHTML;
@@ -2637,7 +2641,7 @@
                     return `输入中<span class="dots"><i></i><i></i><i></i></span>`;
                 }
                 if (s === 'canceled') return '已中止';
-                return '';
+                return ''; // Done
             };
 
             // 1. 创建一个空白的文档片段 (在内存中)
@@ -2668,13 +2672,13 @@
                     contentElement = createMarkdownElement(`${msg.id}`, msg.content);
                 } else {
                     const st = msg.status || 'done';
-                    const text = (msg.content || '');
-                    if (st === 'loading' || st === 'thinking' || st === 'streaming') {
+                    const text = (msg.content || '').trim();
+                    if (st === 'loading' || st === 'thinking') {
                         // 仅显示加载指示，不显示文字
                         contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
-                    }if (st === 'empty') {
+                    } else if (st === 'empty') {
                         // 无内容时不显示加载文字
-                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"></div></div>`);
+                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text">Response No Message...</div></div>`);
                     } else {
                         contentElement = renderGroupedBubbles(msg.id, text);
                     }
@@ -2691,7 +2695,7 @@
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
                                 ${(!isUser && (msg.thinking && msg.thinking.trim())) ? `<button class=\"ms-think-toggle\" data-msg-id=\"${msg.id}\" aria-expanded=\"false\" title=\"显示/隐藏思考过程\">🧠<i class="think-blink" aria-hidden="true"></i></button>` : ''}
-                                ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${((msg.status === 'streaming' || msg.status === 'thinking') && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
+                                ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${((progressing(msg.status)) && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
                             </div>
                         </div>
                     </div>
@@ -2746,7 +2750,7 @@
             const bubbles = paras.map((p, index) => createMarkdownElement(`${id}_${index}`, p));
             const bubbleContainer = createElement(`<div class="message-bubbles"></div>`);
             if (bubbles.length === 0) {
-                bubbleContainer.appendChild(createElement('<div class="message-text"></div>'));
+                bubbleContainer.appendChild(createElement(`<div class="message-text">None(Bubble Container None...)</div>`));
             } else {
                 bubbleContainer.append(...bubbles);
             }
@@ -3500,7 +3504,7 @@
                 }
                 const client = await getOpenAIClient(globalSettings);
                 const candidateList = candidates.map(a => ({ name: a.name, role: a.role || '' }));
-                const recent = (group.messages || []).slice(-20).filter(m => m.role !== 'system');
+                const recent = (group.messages || []).slice(-10).filter(m => m.role !== 'system');
                 const history = recent.map(m => {
                     if (m.role === 'user') return { role: 'user', content: `[${globalSettings.userName}]: ${m.content}` };
                     const msgAgent = agents.find(a => a.id === m.agentId);
