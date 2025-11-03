@@ -427,6 +427,11 @@
             font-size: 1.5em;
         }
         .message-status .ms-action:hover { color: var(--text); }
+        .message-status .dots { display: inline-flex; gap: 2px; margin-left: 2px; vertical-align: middle; }
+        .message-status .dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .6; display: inline-block; animation: msDots 1.2s infinite ease-in-out; }
+        .message-status .dots i:nth-child(2) { animation-delay: .2s; }
+        .message-status .dots i:nth-child(3) { animation-delay: .4s; }
+        @keyframes msDots { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-2px); opacity: 1; } }
 
         /* 更轻量的流式加载外观 */
         .message.streaming { margin-bottom: 10px; }
@@ -570,10 +575,6 @@
 
         .typing-indicator {
             display: inline-block;
-            padding: 12px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .typing-indicator span {
@@ -2127,6 +2128,18 @@
                     const run = inflight.get(msgId);
                     try { run?.stream?.controller?.abort?.(); } catch (_) {}
                     if (run?.ac) run.ac.abort();
+                    // 标记该角色消息为 canceled，并记录系统提示
+                    const group = groups.find(g => g.id === currentGroupId);
+                    if (group && Array.isArray(group.messages)) {
+                        const m = group.messages.find(m => m.id === msgId);
+                        if (m && m.role === 'assistant' && m.status === 'streaming') {
+                            m.status = 'canceled';
+                            saveData();
+                            renderMessages();
+                            const agent = agents.find(a => a.id === m.agentId);
+                            addSystemMessage(group, `用户中止了 ${agent ? agent.name : '该角色'} 的响应`, 'info');
+                        }
+                    }
                     return;
                 }
                 // welcome-actions 快捷操作
@@ -2576,9 +2589,17 @@
                 return;
             }
 
-            const statusTag = (s) => {
+            const statusTag = (msg) => {
+                if (!msg) return '';
+                const s = msg.status;
                 if (!s) return '';
-                return s === 'streaming' ? '生成中…' : s === 'canceled' ? '已中止' : s === 'empty' ? '无内容' : s === 'error' ? '出错' : '';
+                if (s === 'canceled') return '已中止';
+                if (s === 'streaming') {
+                    const hasContent = (msg.content || '').trim().length > 0;
+                    const label = hasContent ? '输入中' : '生成中';
+                    return `${label}<span class="dots"><i></i><i></i><i></i></span>`;
+                }
+                return '';
             };
 
             // 1. 创建一个空白的文档片段 (在内存中)
@@ -2596,6 +2617,10 @@
                     `);
                 }
                 const isUser = msg.role === 'user';
+                // 错误/空回复的助手消息：不显示消息气泡，仅显示系统提示（由其他逻辑插入）
+                if (!isUser && (msg.status === 'error' || msg.status === 'empty')) {
+                    return '';
+                }
                 const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
                 const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
                 const name = isUser ? globalSettings.userName : (agent ? agent.name : '未知');
@@ -2607,9 +2632,11 @@
                     const st = msg.status || 'done';
                     const text = (msg.content || '');
                     if (st === 'streaming' && text.trim() === '') {
-                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span> <span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
+                        // 仅显示加载指示，不显示文字
+                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
                     } else if (st === 'empty') {
-                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"><span style="opacity:.7;">输入中...</span></div></div>`);
+                        // 无内容时不显示加载文字
+                        contentElement = createElement(`<div class="message-bubbles"><div class="message-text"></div></div>`);
                     } else {
                         contentElement = renderGroupedBubbles(msg.id, text);
                     }
@@ -2625,7 +2652,7 @@
                             <div class="message-header">
                                 <span class="message-name">${name}</span>
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
-                                ${(!isUser && statusTag(msg.status)) ? `<span class="message-status">${statusTag(msg.status)}${(msg.status === 'streaming' && msg.id) ? ` <button class="ms-action" data-action="cancel-msg" data-msg-id="${msg.id}" title="停止" aria-label="停止">⏹</button>` : ''}</span>` : ''}
+                                ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${(msg.status === 'streaming' && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
                             </div>
                         </div>
                     </div>
@@ -3560,6 +3587,9 @@
                 group.messages[msgIndex].status = finalText ? 'done' : 'empty';
                 saveData();
                 renderMessages();
+                if (!finalText) {
+                    addSystemMessage(group, `角色 ${agent.name} 空回复`, 'info');
+                }
 
             } catch (error) {
                 console.error('Error:', error);
@@ -3776,7 +3806,7 @@
             return error;
         }
         function buildHistoryForAgentInGroup(agent, group) {
-            const nonSystem = (group.messages || []).filter(m => m.role !== 'system');
+            const nonSystem = (group.messages || []).filter(m => m.role !== 'system' && !(m.role === 'assistant' && m.status === 'empty'));
             const settings = getAgentGroupSettings(group, agent.id);
             let indices;
             if (!settings.vision || settings.vision.type === 'all') {
