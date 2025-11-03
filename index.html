@@ -2093,6 +2093,79 @@
                 saveUserSettings();
             });
 
+            // 配置变更：即时生效（无需点保存）
+            if (el.systemMsgLevel) {
+                el.systemMsgLevel.addEventListener('change', () => {
+                    globalSettings.systemMsgLevel = el.systemMsgLevel.value || 'all';
+                    saveData();
+                    if (currentGroupId) renderMessages();
+                });
+            }
+            if (el.themeMode) {
+                el.themeMode.addEventListener('change', () => {
+                    globalSettings.themeMode = el.themeMode.value || 'system';
+                    saveData();
+                    applyTheme(globalSettings.themeMode);
+                });
+            }
+            if (el.globalModel) {
+                el.globalModel.addEventListener('change', () => {
+                    globalSettings.model = el.globalModel.value || '';
+                    saveData();
+                    // 右栏用户条目展示全局模型
+                    renderAgents();
+                });
+            }
+            if (el.globalBaseUrl) {
+                const onBaseUrlChange = async () => {
+                    globalSettings.baseUrl = el.globalBaseUrl.value || '';
+                    saveData();
+                    try { await initOpenAI(); } catch (_) {}
+                };
+                el.globalBaseUrl.addEventListener('input', onBaseUrlChange);
+                el.globalBaseUrl.addEventListener('change', onBaseUrlChange);
+            }
+            if (el.globalApiKey) {
+                const onApiKeyChange = async () => {
+                    globalSettings.apiKey = el.globalApiKey.value || '';
+                    saveData();
+                    try { await initOpenAI(); } catch (_) {}
+                };
+                el.globalApiKey.addEventListener('input', onApiKeyChange);
+                el.globalApiKey.addEventListener('change', onApiKeyChange);
+            }
+
+            // 群聊配置中的数值：即时生效（编辑模式）
+            if (el.groupMaxRounds) {
+                el.groupMaxRounds.addEventListener('input', () => {
+                    if (currentEditingGroup !== null) {
+                        const v = parseInt(el.groupMaxRounds.value, 10);
+                        groups[currentEditingGroup].maxRounds = isNaN(v) ? 0 : v;
+                        saveData();
+                    }
+                });
+            }
+
+            // 角色配置中的数值：即时生效（编辑模式，使用自定义配置时）
+            if (el.agentTemperature) {
+                el.agentTemperature.addEventListener('input', () => {
+                    if (currentEditingAgent !== null && agents[currentEditingAgent] && agents[currentEditingAgent].useGlobal === false) {
+                        const v = parseFloat(el.agentTemperature.value);
+                        agents[currentEditingAgent].temperature = isNaN(v) ? 0.7 : v;
+                        saveData();
+                    }
+                });
+            }
+            if (el.agentMaxTokens) {
+                el.agentMaxTokens.addEventListener('input', () => {
+                    if (currentEditingAgent !== null && agents[currentEditingAgent] && agents[currentEditingAgent].useGlobal === false) {
+                        const v = parseInt(el.agentMaxTokens.value, 10);
+                        agents[currentEditingAgent].maxTokens = isNaN(v) ? 2000 : v;
+                        saveData();
+                    }
+                });
+            }
+
             el.createGroupBtn.addEventListener('click', openGroupModal);
             el.cancelGroupModalBtn.addEventListener('click', closeGroupModal);
             el.groupForm.addEventListener('submit', (e) => {
@@ -2223,6 +2296,13 @@
                 if (removeBtn) {
                     e.stopPropagation();
                     removeAgentFromCurrentGroup(removeBtn.dataset.agentId);
+                    return;
+                }
+                // 点击“当前用户”条目，打开用户设置
+                const userEntry = e.target.closest('[data-user-entry="true"]');
+                if (userEntry) {
+                    e.stopPropagation();
+                    openUserSettingsModal();
                     return;
                 }
                 const item = e.target.closest('.agent-item');
@@ -2377,6 +2457,7 @@
                         </div>
                         <div class="item-actions" style="margin-top:0;"></div>
                     </div>
+                    <div class="item-desc" style="font-size: 11px;">模型: ${globalSettings.model || '-'}</div>
                 </div>`;
 
             const agentsHtml = list.map((agent) => {
@@ -3154,7 +3235,12 @@
             saveData();
             renderGroups();
             autoSelectFirstGroupIfNone();
-            if (currentGroupId === group.id) selectGroup(group.id);
+            // 新建群聊后，默认切换到该群聊
+            if (!isEdit) {
+                selectGroup(group.id);
+            } else if (currentGroupId === group.id) {
+                selectGroup(group.id);
+            }
             showToast(isEdit ? '保存成功' : '创建成功', 'success');
             closeGroupModal();
         }
