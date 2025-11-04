@@ -2862,15 +2862,43 @@
             return temp.firstElementChild;
         }
 
-        // 单元素预览防抖
-        const previewTimers = new WeakMap();
-        function schedulePreview(el, text, opts, delay = 180) {
-            const prev = previewTimers.get(el);
-            if (prev) clearTimeout(prev);
-            const t = setTimeout(() => {
-                Vditor.preview(el, autoCloseCodeBlock(text.trim()), opts);
+        // Markdown 预览合并渲染器：节流 + 尾触发 + maxWait（按元素维度）
+        const previewStates = new WeakMap(); // el -> { timer, lastRender, pending }
+        // minDelay 最短合并等待时间, 用于节流, maxDelay 最长不更新等待时间, 用于尾触发
+        function schedulePreview(el, text, opts, minDelay = 60, maxDelay = 180) {
+            if (!el) return;
+            let st = previewStates.get(el);
+            if (!st) {
+                st = { timer: null, lastRender: 0, pending: '' };
+                previewStates.set(el, st);
+            }
+            if (st.pending === text) return;
+
+            if (st.timer != null) {
+                clearTimeout(st.timer);
+                st.timer = null;
+            }
+
+            // 更新待渲染文本（保留最新）
+            const currentPending = text;
+
+            const now = performance.now();
+            const since = now - (st.lastRender || 0);
+            const hasUpdate = maxDelay <= since;
+            // delay 为 0 表示立即刷新渲染, 
+            // 所以当 hasUpdate 为 true 时, 会立即刷新
+            // 以及当 since 大于 minDelay 时, 也会立即刷新
+            // 否则就是执行节流策略, 按最短合并等待时间延迟刷新
+            const delay = hasUpdate ? 0 : Math.max(minDelay - since, 0);
+
+            st.timer = window.setTimeout(async () => {
+                st.timer = null;
+                const textToRender = autoCloseCodeBlock(currentPending.trim());
+                Vditor.preview(el, autoCloseCodeBlock(textToRender), opts);
+                st.lastRender = performance.now();
+                st.pending = currentPending;
             }, delay);
-            previewTimers.set(el, t);
+            // previewStates.set(el, st);
         }
 
         const createMarkdownElement = (id, text) => {
@@ -2893,7 +2921,7 @@
                         }
                     }
                 };
-                schedulePreview(qs('.vditor-reset', mdel), text, opts, 180);
+                schedulePreview(qs('.vditor-reset', mdel), text, opts, 60, 180);
                 cacheSet(key, mdel);
             }
             return mdel;
