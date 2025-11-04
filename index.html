@@ -2394,6 +2394,18 @@
             el.userNameDisplay.textContent = globalSettings.userName;
         }
 
+        // Ensure each modal opens at the top rather than previous scroll position
+        function resetModalScroll(modalEl) {
+            if (!modalEl) return;
+            modalEl.scrollTop = 0;
+            const content = modalEl.querySelector('.modal-content');
+            if (content) {
+                content.scrollTop = 0;
+                const form = content.querySelector('form');
+                if (form) form.scrollTop = 0;
+            }
+        }
+
         function openUserSettingsModal() {
             updateModelSelects();
             el.userNickname.value = globalSettings.userName;
@@ -2407,6 +2419,7 @@
                 el.themeMode.value = globalSettings.themeMode || 'system';
             }
             el.userSettingsModal.classList.add('active');
+            resetModalScroll(el.userSettingsModal);
         }
 
         function closeUserSettingsModal() {
@@ -2858,6 +2871,7 @@
                 qsa('input[name="permSeenMode"]').forEach(r=>{ r.onchange = ()=>{ el.permCanSeeMeList.style.display = (r.value==='custom'&&r.checked)?'':'none'; if (el.permCanSeeMeList.innerHTML.trim()==='') buildList(el.permCanSeeMeList); }; });
             }
             el.agentModal.classList.add('active');
+            resetModalScroll(el.agentModal);
         }
 
         function closeAgentModal() {
@@ -2921,6 +2935,7 @@
                 if (el.permVisionError) { el.permVisionError.style.display = 'none'; el.permVisionError.textContent = ''; }
             }
             el.agentModal.classList.add('active');
+            resetModalScroll(el.agentModal);
         }
 
         function saveAgent() {
@@ -3078,6 +3093,7 @@
             renderAgentCheckboxes();
             updateGroupAutoReplyUI();
             el.groupModal.classList.add('active');
+            resetModalScroll(el.groupModal);
         }
 
         function closeGroupModal() {
@@ -3113,6 +3129,7 @@
             renderAgentCheckboxes(group.agentIds);
             updateGroupAutoReplyUI();
             el.groupModal.classList.add('active');
+            resetModalScroll(el.groupModal);
         }
 
         function renderAgentCheckboxes(selectedIds = []) {
