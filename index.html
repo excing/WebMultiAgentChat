@@ -48,7 +48,7 @@
         .sidebar {
             width: 280px;
             background: white;
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 16px;
             display: flex;
             flex-direction: column;
@@ -58,7 +58,7 @@
         .sidebar-right {
             width: 300px;
             background: white;
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 16px;
             display: flex;
             flex-direction: column;
@@ -70,7 +70,7 @@
             display: flex;
             flex-direction: column;
             background: white;
-            border-radius: 12px;
+            border-radius: var(--radius);
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             position: relative;
             overflow: hidden;
@@ -145,7 +145,7 @@
         .user-bar {
             background: #f0f4ff;
             padding: 12px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             margin-bottom: 15px;
             display: flex;
             justify-content: space-between;
@@ -167,7 +167,7 @@
             background: #f5f5f5;
             padding: 12px;
             margin-bottom: 10px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
             transition: all 0.2s;
             border: 2px solid transparent;
@@ -201,7 +201,7 @@
         }
 
         .item-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-        .icon-btn { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition: background var(--transition), border-color var(--transition), transform var(--transition), color var(--transition); }
+        .icon-btn { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition: background var(--transition), border-color var(--transition), transform var(--transition), color var(--transition); }
         .icon-btn:hover { background: var(--muted); }
         .icon-btn:active { transform: scale(0.98); }
         .icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -209,9 +209,9 @@
         .icon-btn-danger:hover { background: var(--danger-soft-bg-hover); }
         .icon-btn-danger:active { background: var(--danger-soft-bg-active); }
         .more-wrap { position: relative; }
-        .dropdown-menu { position: absolute; right: 0; top: 36px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); min-width: 120px; padding: 6px; z-index: 20; display: none; }
+        .dropdown-menu { position: absolute; right: 0; top: 36px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); min-width: 120px; padding: 6px; z-index: 20; display: none; }
         .dropdown-menu.open { display: block; }
-        .dropdown-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--text); }
+        .dropdown-item { padding: 8px 10px; border-radius: var(--radius-xs); cursor: pointer; font-size: 14px; color: var(--text); }
         .dropdown-item:hover { background: var(--muted); }
         .dropdown-item-danger { background: var(--danger-soft-bg); color: var(--danger-soft-fg); border: 1px solid var(--danger-soft-border); }
         .dropdown-item-danger:hover { background: var(--danger-soft-bg-hover); }
@@ -221,7 +221,7 @@
         .btn {
             padding: 8px 16px;
             border: none;
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             cursor: pointer;
             font-size: 16px;
             transition: all 0.2s;
@@ -382,10 +382,19 @@
             margin-bottom: 4px;
         }
 
-        /* 工具条（复制 / 导出） */
-        .message-tools { margin-left: auto; display: flex; gap: 6px; opacity: 0; pointer-events: none; transition: opacity var(--transition); }
-        .message-content:hover .message-tools, .message-content.show-tools .message-tools { opacity: 1; pointer-events: auto; }
-        .message-tools .icon-btn { width: 28px; height: 28px; }
+        /* 工具条组件（复制 / 导出） */
+        .message-tools { background: var(--panel); border-radius: var(--radius-sm); margin-left: auto; display: flex; gap: 2px; padding: 2px; opacity: 0; pointer-events: none; transition: opacity var(--transition); }
+        /* 桌面端：悬停消息时半透明可见，悬停工具条本体时全不透明 */
+        .message-content:hover .message-tools { opacity: .35; pointer-events: auto; }
+        .message-content:hover .message-tools:hover { opacity: 1; }
+        /* 移动端点击显示（不受 hover 影响） */
+        .message-content.show-tools .message-tools { opacity: 1; pointer-events: auto; }
+        .message-tools .icon-btn { width: 24px; height: 24px; border: none; }
+
+        @media (max-width: 768px) {
+            /* 移动端点击显示（不受桌面端 hover 影响） */
+            .message-content:not(.show-tools):hover .message-tools { opacity: 0; }
+        }
 
         .message-name {
             font-weight: 600;
@@ -400,7 +409,7 @@
         .message-text {
             background: white;
             padding: 12px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             color: #333;
             line-height: 1.5;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -428,7 +437,7 @@
             cursor: pointer;
             padding: 0 2px;
             line-height: 1;
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             font-size: 1.5em;
         }
         .message-status .ms-action:hover { color: var(--text); }
@@ -444,7 +453,7 @@
             border: 1px solid var(--border);
             background: var(--panel);
             color: color-mix(in oklab, var(--text) 60%, transparent);
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             padding: 2px 6px;
             font-size: 12px;
             line-height: 1;
@@ -486,7 +495,7 @@
             flex: 1;
             padding: 12px;
             border: 1px solid #d0d0d0;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             font-size: 14px;
             resize: none;
             font-family: inherit;
@@ -539,7 +548,7 @@
         .modal-content {
             background: white;
             padding: 30px;
-            border-radius: 12px;
+            border-radius: var(--radius);
             width: 90%;
             max-width: 600px;
             max-height: 85vh;
@@ -570,7 +579,7 @@
             width: 100%;
             padding: 10px;
             border: 1px solid #d0d0d0;
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             font-size: 14px;
             font-family: inherit;
         }
@@ -646,7 +655,7 @@
             max-height: 200px;
             overflow-y: auto;
             border: 1px solid #d0d0d0;
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             padding: 10px;
         }
 
@@ -683,7 +692,7 @@
         .config-section {
             padding: 15px;
             background: #f9fafb;
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             border: 1px solid #e0e0e0;
         }
 
@@ -748,7 +757,7 @@
             background: white;
             border: 1px solid #e0e0e0;
             padding: 8px 12px;
-            border-radius: 6px;
+            border-radius: var(--radius-xs);
             cursor: pointer;
             font-size: 18px;
             transition: all 0.2s;
@@ -972,7 +981,7 @@
         .toast {
             background: white;
             padding: 10px 20px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             display: flex;
             align-items: center;
@@ -1079,6 +1088,8 @@
 
             --radius: 12px;
             --radius-lg: 14px;
+            --radius-sm: 8px;
+            --radius-xs: 6px;
             --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
             --shadow-md: 0 6px 16px rgba(0,0,0,0.08);
             --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
@@ -1154,13 +1165,13 @@
         .chat-header-subtitle { color: color-mix(in oklab, var(--text) 60%, transparent); }
 
         .chat-messages { background: var(--muted); }
-        .message-text { background: var(--bubble-bg-ai); color: var(--text); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); line-height: 1.6; }
+        .message-text { background: var(--bubble-bg-ai); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); line-height: 1.6; }
         .message.user .message-text { background: var(--bubble-bg-user); color: var(--bubble-fg-user); border-color: color-mix(in oklab, var(--brand) 35%, var(--border)); }
         .message-bubbles { gap: 8px; }
         .message-avatar { box-shadow: var(--shadow-sm); border: 1px solid var(--border); cursor: pointer; }
 
         .chat-input { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--border); backdrop-filter: blur(6px); z-index: 10; padding: 14px 16px; }
-        .chat-input textarea { background: var(--control-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; color: var(--text); caret-color: var(--text); color-scheme: light dark; }
+        .chat-input textarea { background: var(--control-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; color: var(--text); caret-color: var(--text); color-scheme: light dark; }
         .chat-input textarea::placeholder { color: color-mix(in oklab, var(--text) 55%, transparent); }
         .chat-input textarea:disabled { background: color-mix(in oklab, var(--control-bg) 85%, transparent); color: color-mix(in oklab, var(--text) 60%, transparent); border-color: var(--border); cursor: not-allowed; }
         .chat-input textarea:disabled::placeholder { color: color-mix(in oklab, var(--text) 45%, transparent); }
@@ -2286,7 +2297,7 @@
                     return;
                 }
                 // 移动端：点击消息内容切换工具条显示
-                if (isMobileLike) {
+                if (isMobileView()) {
                     const contentEl = e.target.closest('.message-content');
                     if (contentEl && !e.target.closest('[data-action]') && !e.target.closest('.ms-think-toggle')) {
                         const shown = contentEl.classList.toggle('show-tools');
@@ -2665,11 +2676,6 @@
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
         }
-
-        const isMobileLike = (() => {
-            try { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || window.matchMedia('(hover: none)').matches; }
-            catch (_) { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0; }
-        })();
 
         /**
          * 检查并自动闭合未完成的Markdown代码块 (```).
