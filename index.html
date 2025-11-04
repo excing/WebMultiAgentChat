@@ -391,6 +391,12 @@
         .message-content.show-tools .message-tools { opacity: 1; pointer-events: auto; }
         .message-tools .icon-btn { width: 24px; height: 24px; border: none; }
 
+        /* TTS read button */
+        .tts-read-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 6px; opacity: 0; pointer-events: none; display: inline-flex; align-items: center; justify-content: center; line-height: 1; box-shadow: var(--shadow-sm); }
+        .message-text:hover .tts-read-btn { opacity: 1; pointer-events: auto; }
+        /* Mobile: show with existing show-tools state to avoid extra handlers */
+        .message-content.show-tools .message-text:active .tts-read-btn { opacity: 1; pointer-events: auto; }
+
         @media (max-width: 768px) {
             /* 移动端点击显示（不受桌面端 hover 影响） */
             .message-content:not(.show-tools):hover .message-tools { opacity: 0; }
@@ -1196,61 +1202,55 @@
         .message-text code {  padding: 0 4px; border-radius: 6px; } */
 
         /* Ensure Vditor preview inherits bubble style */
-        .message-text.vditor-reset { color: var(--text); white-space: normal; word-break: normal; }
-        .message-text.vditor-reset p,
-        .message-text.vditor-reset ul,
-        .message-text.vditor-reset ol { margin-bottom: 0.25em; }
-        .message-text.vditor-reset ul,
-        .message-text.vditor-reset ol { padding-left: 1.15em; }
+        .message-text .vditor-reset { color: var(--text); white-space: normal; word-break: normal; }
+        .message-text .vditor-reset p,
+        .message-text .vditor-reset ul,
+        .message-text .vditor-reset ol { margin-bottom: 0.25em; }
+        .message-text .vditor-reset ul,
+        .message-text .vditor-reset ol { padding-left: 1.15em; }
         /* Compact, harmonious headings inside bubbles */
-        .message-text.vditor-reset h1,
-        .message-text.vditor-reset h2,
-        .message-text.vditor-reset h3,
-        .message-text.vditor-reset h4,
-        .message-text.vditor-reset h5,
-        .message-text.vditor-reset h6 { 
+        .message-text .vditor-reset h1,
+        .message-text .vditor-reset h2,
+        .message-text .vditor-reset h3,
+        .message-text .vditor-reset h4,
+        .message-text .vditor-reset h5,
+        .message-text .vditor-reset h6 { 
             margin: 0.4em 0 0.3em; 
             line-height: 1.3; 
             font-weight: 700; 
             word-break: break-word; 
             overflow-wrap: anywhere;
         }
-        .message-text.vditor-reset h1 { font-size: 1.25em; }
-        .message-text.vditor-reset h2 { font-size: 1.15em; }
-        .message-text.vditor-reset h3 { font-size: 1.06em; }
-        .message-text.vditor-reset h4 { font-size: 1.00em; }
-        .message-text.vditor-reset h5 { font-size: 0.95em; }
-        .message-text.vditor-reset h6 { font-size: 0.90em; letter-spacing: .02em; }
-        .message-text.vditor-reset > :first-child { margin-top: 0; }
-        .message-text.vditor-reset > :last-child { margin-bottom: 0; }
+        .message-text .vditor-reset h1 { font-size: 1.25em; }
+        .message-text .vditor-reset h2 { font-size: 1.15em; }
+        .message-text .vditor-reset h3 { font-size: 1.06em; }
+        .message-text .vditor-reset h4 { font-size: 1.00em; }
+        .message-text .vditor-reset h5 { font-size: 0.95em; }
+        .message-text .vditor-reset h6 { font-size: 0.90em; letter-spacing: .02em; }
+        .message-text .vditor-reset > :first-child { margin-top: 0; }
+        .message-text .vditor-reset > :last-child { margin-bottom: 0; }
 
-        /* .message-text.vditor-reset pre { border: 1px solid var(--border); border-radius: 10px; padding: 10px; } */
-        /* .message-text.vditor-reset pre { margin: 0; max-width: 100%; overflow: auto;} */
-        .message-text.vditor-reset code { max-height: 100% !important;}
+        /* .message-text .vditor-reset pre { border: 1px solid var(--border); border-radius: 10px; padding: 10px; } */
+        /* .message-text .vditor-reset pre { margin: 0; max-width: 100%; overflow: auto;} */
+        .message-text .vditor-reset code { max-height: 100% !important;}
         /* 选择 SVG 内的 text 和 line */
-        .message-text.vditor-reset svg text { fill: var(--text) !important; }
-        .message-text.vditor-reset svg line,
-        .message-text.vditor-reset svg path,
-        .message-text.vditor-reset svg rect,
-        .message-text.vditor-reset svg circle,
-        .message-text.vditor-reset svg polygon,
-        .message-text.vditor-reset svg ellipse,
-        .message-text.vditor-reset svg polyline { stroke: var(--text) !important; }
-
-        /* TTS read button */
-        .tts-read-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 6px; opacity: 0; pointer-events: none; display: inline-flex; align-items: center; justify-content: center; line-height: 1; box-shadow: var(--shadow-sm); }
-        .message-text:hover .tts-read-btn { opacity: 1; pointer-events: auto; }
-        /* Mobile: show with existing show-tools state to avoid extra handlers */
-        .message-content.show-tools .message-text .tts-read-btn { opacity: 1; pointer-events: auto; }
+        .message-text .vditor-reset svg text { fill: var(--text) !important; }
+        .message-text .vditor-reset svg line,
+        .message-text .vditor-reset svg path,
+        .message-text .vditor-reset svg rect,
+        .message-text .vditor-reset svg circle,
+        .message-text .vditor-reset svg polygon,
+        .message-text .vditor-reset svg ellipse,
+        .message-text .vditor-reset svg polyline { stroke: var(--text) !important; }
 
         /* 折线图背景 */
-        .message-text.vditor-reset svg g.main rect.background { fill: var(--muted); }
+        .message-text .vditor-reset svg g.main rect.background { fill: var(--muted); }
 
         /* ABC 语言样式保持原样 wheat*/
-        .message-text.vditor-reset .language-abc { background: wheat; }
-        .message-text.vditor-reset .language-abc svg text { fill: initial !important; }
-        .message-text.vditor-reset .language-abc svg path,
-        .message-text.vditor-reset .language-abc svg rect {
+        .message-text .vditor-reset .language-abc { background: wheat; }
+        .message-text .vditor-reset .language-abc svg text { fill: initial !important; }
+        .message-text .vditor-reset .language-abc svg path,
+        .message-text .vditor-reset .language-abc svg rect {
             /* * "initial" 关键字将样式重置为浏览器的默认值。
             * 您也可以使用 "unset"（恢复继承）或特定的颜色（如 'black'）。
             * 因为原始规则有 !important，这里也必须有 !important 才能覆盖它。
@@ -1259,9 +1259,9 @@
         }
 
         /* 表格样式 */
-        .message-text.vditor-reset thead tr { background: color-mix(in oklab, var(--table-bg) 90%, transparent); }
-        .message-text.vditor-reset tbody tr { background: color-mix(in oklab, var(--table-bg) 15%, transparent); }
-        .message-text.vditor-reset tbody tr:nth-child(2n) { background: color-mix(in oklab, var(--table-bg) 45%, transparent); }
+        .message-text .vditor-reset thead tr { background: color-mix(in oklab, var(--table-bg) 90%, transparent); }
+        .message-text .vditor-reset tbody tr { background: color-mix(in oklab, var(--table-bg) 15%, transparent); }
+        .message-text .vditor-reset tbody tr:nth-child(2n) { background: color-mix(in oklab, var(--table-bg) 45%, transparent); }
 
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
@@ -2500,7 +2500,7 @@
                 const readBtn = e.target.closest('[data-action="tts-read"]');
                 if (readBtn) {
                     e.stopPropagation();
-                    const bubble = readBtn.closest('.message-text');
+                    const bubble = qs('.vditor-reset', readBtn.closest('.message-text'));
                     const msgRoot = readBtn.closest('.message');
                     const msgId = msgRoot?.getAttribute('data-msg-id') || '';
                     const text = getBubblePlainText(bubble);
@@ -2867,8 +2867,9 @@
         }
 
         const createMarkdownElement = (id, text) => {
+            const messageTextEleHTML = `<div class="message-text" data-md-enc=""><div class="vditor-reset">${text}</div><button class="tts-read-btn" data-action="tts-read" title="朗读" aria-label="朗读">🔊</button></div>`;
             const key = id;
-            const mdel = messageElementCache.has(key) ? messageElementCache.get(key) : createElement(`<div class="message-text" data-md-enc="">${text}</div>`);
+            const mdel = messageElementCache.has(key) ? messageElementCache.get(key) : createElement(messageTextEleHTML);
             const textencode = encodeURIComponent(text||'');
             // 获取 el 的 data-md-enc 值
             const mdencode = mdel.getAttribute('data-md-enc') || "";
@@ -2880,14 +2881,12 @@
                         style: globalSettings.themeMode === "dark" ? "base16/dracula" : "github"
                     },
                     after: () => {
-                        ensureTTSBtn(mdel);
                         if (shouldAutoScroll) {
                             el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
                         }
                     }
                 };
-                schedulePreview(mdel, text, opts, 180);
-                ensureTTSBtn(mdel);
+                schedulePreview(qs('.vditor-reset', mdel), text, opts, 180);
                 cacheSet(key, mdel);
             }
             return mdel;
@@ -2925,18 +2924,6 @@
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
-        }
-
-        function ensureTTSBtn(container) {
-            if (!container || !container.classList.contains('message-text')) return;
-            if (container.querySelector('.tts-read-btn')) return;
-            const btn = document.createElement('button');
-            btn.className = 'tts-read-btn';
-            btn.setAttribute('data-action', 'tts-read');
-            btn.setAttribute('title', '朗读');
-            btn.setAttribute('aria-label', '朗读');
-            btn.textContent = '🔊';
-            container.appendChild(btn);
         }
 
         function getBubblePlainText(bubble) {
