@@ -2296,12 +2296,20 @@
                     }
                     return;
                 }
-                // 移动端：点击消息内容切换工具条显示
+                // 移动端：点击消息内容显示工具条，并重置单一计时器
                 if (isMobileView()) {
                     const contentEl = e.target.closest('.message-content');
                     if (contentEl && !e.target.closest('[data-action]') && !e.target.closest('.ms-think-toggle')) {
-                        const shown = contentEl.classList.toggle('show-tools');
-                        if (shown) setTimeout(() => contentEl.classList.remove('show-tools'), 2500);
+                        const show = contentEl.classList.toggle('show-tools');
+                        const prev = mobileToolsTimers.get(contentEl);
+                        if (prev) clearTimeout(prev);
+                        if (show) {
+                            const t = setTimeout(() => {
+                                contentEl.classList.remove('show-tools');
+                                mobileToolsTimers.delete(contentEl);
+                            }, 2500);
+                            mobileToolsTimers.set(contentEl, t);
+                        }
                         return;
                     }
                 }
@@ -2650,6 +2658,9 @@
             }
             return mdel;
         }
+
+        // 每条消息内容区域的移动端工具条隐藏计时器
+        const mobileToolsTimers = new WeakMap();
 
         // ===== 工具：提取消息 Markdown、下载文件、移动端判断 =====
         function getMessageMarkdownFromEl(msgRoot) {
