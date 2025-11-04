@@ -2841,10 +2841,17 @@
             }
         }
 
-        const hash = (text) => {
-            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(buf => {
-                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-            });
+        const hash = (str) => {
+            let hash = 0;
+            if (str.length === 0) {
+                return hash;
+            }
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char; // hash * 31 + char
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            return hash;
         }
 
         const createElement = (html) => {
@@ -2968,7 +2975,9 @@
             const plain = text.trim();
             if (!plain) { showToast('暂无可朗读内容', 'warning'); return; }
             if (!cfg.baseUrl) { showToast('请先配置 TTS Base URL', 'warning'); return; }
-            const key = (await hash(`${plain}|${JSON.stringify(cfg)}`)).slice(0, 48);
+            const key = hash(`${plain}|${JSON.stringify(cfg)}`);
+            console.log('tts cache key:', key);
+            
             try {
                 if (currentAudio) { try { currentAudio.pause(); } catch (_) {} }
                 let src = ttsAudioCache.get(key);
@@ -3001,12 +3010,44 @@
 
         function fillVoiceSelect(selectEl, voices, current) {
             if (!selectEl) return;
-            const opts = (voices || []).map(v => `<option value="${v.ShortName}">${v.ShortName}${v.LocalName?` / ${v.LocalName}`:''}</option>`).join('');
-            selectEl.innerHTML = `<option value="">-- 选择 Voice --</option>` + opts;
+            // Reset with placeholder
+            selectEl.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '-- 选择 Voice --';
+            selectEl.appendChild(placeholder);
+
+            const list = Array.isArray(voices) ? voices.slice() : [];
+            // Group by Locale
+            const byLocale = new Map();
+            for (const v of list) {
+                const key = v.Locale || 'Other';
+                if (!byLocale.has(key)) byLocale.set(key, []);
+                byLocale.get(key).push(v);
+            }
+            // Sort locales and voices for stable UI
+            const locales = Array.from(byLocale.keys()).sort((a,b)=>a.localeCompare(b));
+            for (const locale of locales) {
+                const groupEl = document.createElement('optgroup');
+                groupEl.label = locale;
+                const vs = byLocale.get(locale).sort((a,b)=> (a.ShortName||'').localeCompare(b.ShortName||''));
+                for (const v of vs) {
+                    const opt = document.createElement('option');
+                    opt.value = v.ShortName;
+                    const gender = v.Gender === 'Female' ? '♀' : (v.Gender === 'Male' ? '♂' : '•');
+                    opt.textContent = `${gender} ${v.ShortName}${(v.LocalName && v.ShortName.length < 36 && v.LocalName !== v.ShortName) ? ` / ${v.LocalName}` : ''}`;
+                    groupEl.appendChild(opt);
+                }
+                selectEl.appendChild(groupEl);
+            }
+
             if (current) {
-                const has = Array.from(selectEl.options).some(o=>o.value===current);
+                let has = Array.from(selectEl.options).some(o => o.value === current);
                 if (!has) {
-                    const opt = document.createElement('option'); opt.value = current; opt.textContent = current; selectEl.appendChild(opt);
+                    const orphan = document.createElement('option');
+                    orphan.value = current;
+                    orphan.textContent = current;
+                    selectEl.appendChild(orphan);
                 }
                 selectEl.value = current;
             }
