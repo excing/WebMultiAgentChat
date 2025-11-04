@@ -382,6 +382,11 @@
             margin-bottom: 4px;
         }
 
+        /* 工具条（复制 / 导出） */
+        .message-tools { margin-left: auto; display: flex; gap: 6px; opacity: 0; pointer-events: none; transition: opacity var(--transition); }
+        .message-content:hover .message-tools, .message-content.show-tools .message-tools { opacity: 1; pointer-events: auto; }
+        .message-tools .icon-btn { width: 28px; height: 28px; }
+
         .message-name {
             font-weight: 600;
             color: #333;
@@ -2215,7 +2220,7 @@
             });
             window.addEventListener('resize', () => { if (mentionState.open) positionMentionMenu(); });
 
-            // 聊天区交互：取消、头像点击
+            // 聊天区交互：取消、工具条、头像点击
             el.chatMessages.addEventListener('click', (e) => {
                 const cancelBtn = e.target.closest('[data-action="cancel-msg"]');
                 if (cancelBtn) {
@@ -2247,6 +2252,47 @@
                         thinkToggle.setAttribute('aria-expanded', (!nowHidden).toString());
                     }
                     return;
+                }
+                // 工具条：复制/导出
+                const toolBtn = e.target.closest('[data-action="copy-msg"], [data-action="export-msg"]');
+                if (toolBtn) {
+                    e.stopPropagation();
+                    const msgRoot = toolBtn.closest('.message');
+                    const content = getMessageMarkdownFromEl(msgRoot);
+                    const name = (msgRoot?.querySelector('.message-name')?.textContent || 'message').trim();
+                    const id = msgRoot?.getAttribute('data-msg-id') || '';
+                    if (toolBtn.matches('[data-action="copy-msg"]')) {
+                        if (!content) { showToast('暂无可复制内容', 'warning'); return; }
+                        const copy = async () => {
+                            try {
+                                if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(content);
+                                else {
+                                    const ta = document.createElement('textarea');
+                                    ta.value = content; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                                    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+                                }
+                                showToast('已复制到剪贴板', 'success');
+                            } catch (_) { showToast('复制失败', 'error'); }
+                        };
+                        copy();
+                    } else {
+                        if (!content) { showToast('暂无可导出内容', 'warning'); return; }
+                        const safe = (s) => (s || '').replace(/[^\u4e00-\u9fa5\w\-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'message';
+                        const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+                        const filename = `${safe(name)}${id ? '-' + id.slice(0, 8) : ''}-${ts}.md`;
+                        downloadFile(filename, content);
+                        showToast('已导出 Markdown 文件', 'success');
+                    }
+                    return;
+                }
+                // 移动端：点击消息内容切换工具条显示
+                if (isMobileLike) {
+                    const contentEl = e.target.closest('.message-content');
+                    if (contentEl && !e.target.closest('[data-action]') && !e.target.closest('.ms-think-toggle')) {
+                        const shown = contentEl.classList.toggle('show-tools');
+                        if (shown) setTimeout(() => contentEl.classList.remove('show-tools'), 2500);
+                        return;
+                    }
                 }
                 // welcome-actions 快捷操作
                 if (e.target.closest('#welcomeSettingsBtn')) { openUserSettingsModal(); return; }
@@ -2384,6 +2430,12 @@
             document.addEventListener('click', (ev) => {
                 const isMore = ev.target.closest('.more-wrap');
                 if (!isMore) qsa('.dropdown-menu').forEach(m => m.classList.remove('open'));
+            });
+
+            // 点击空白处隐藏消息工具条（移动端）
+            document.addEventListener('click', (ev) => {
+                const withinMessage = ev.target.closest('.message-content');
+                if (!withinMessage) qsa('.message-content.show-tools').forEach(n => n.classList.remove('show-tools'));
             });
 
             document.addEventListener('keydown', handleGlobalKeydown);
@@ -2588,6 +2640,37 @@
             return mdel;
         }
 
+        // ===== 工具：提取消息 Markdown、下载文件、移动端判断 =====
+        function getMessageMarkdownFromEl(msgRoot) {
+            if (!msgRoot) return '';
+            const nodes = Array.from(msgRoot.querySelectorAll('.message-content .message-text'));
+            if (!nodes.length) return '';
+            const parts = nodes.map(n => {
+                const enc = n.getAttribute('data-md-enc');
+                if (enc) {
+                    try { return decodeURIComponent(enc); } catch (_) { return n.innerText || ''; }
+                }
+                return n.innerText || '';
+            });
+            return parts.join('\n\n').trim();
+        }
+
+        function downloadFile(filename, content, mime = 'text/markdown;charset=utf-8') {
+            const blob = new Blob([content], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+        }
+
+        const isMobileLike = (() => {
+            try { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || window.matchMedia('(hover: none)').matches; }
+            catch (_) { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0; }
+        })();
+
         /**
          * 检查并自动闭合未完成的Markdown代码块 (```).
          *
@@ -2717,6 +2800,10 @@
                                 <span class="message-time">${formatTime(msg.timestamp)}</span>
                                 ${(!isUser && (msg.thinking && msg.thinking.trim())) ? `<button class=\"ms-think-toggle\" data-msg-id=\"${msg.id}\" aria-expanded=\"false\" title=\"显示/隐藏思考过程\">🧠<i class="think-blink" aria-hidden="true"></i></button>` : ''}
                                 ${(!isUser && statusTag(msg)) ? `<span class=\"message-status\">${statusTag(msg)}${((progressing(msg.status)) && msg.id) ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : ''}</span>` : ''}
+                                <div class="message-tools" role="group" aria-label="消息工具">
+                                    <button class="icon-btn" data-action="copy-msg" title="复制" aria-label="复制">📋</button>
+                                    <button class="icon-btn" data-action="export-msg" title="导出为 Markdown" aria-label="导出">⬇️</button>
+                                </div>
                             </div>
                         </div>
                     </div>
