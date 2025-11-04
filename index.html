@@ -415,6 +415,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             white-space: pre-wrap;
             word-break: break-word;
+            position: relative;
         }
 
         /* 消息状态 + 操作（合并组件） */
@@ -1236,6 +1237,12 @@
         .message-text.vditor-reset svg ellipse,
         .message-text.vditor-reset svg polyline { stroke: var(--text) !important; }
 
+        /* TTS read button */
+        .tts-read-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 6px; opacity: 0; pointer-events: none; display: inline-flex; align-items: center; justify-content: center; line-height: 1; box-shadow: var(--shadow-sm); }
+        .message-text:hover .tts-read-btn { opacity: 1; pointer-events: auto; }
+        /* Mobile: show with existing show-tools state to avoid extra handlers */
+        .message-content.show-tools .message-text .tts-read-btn { opacity: 1; pointer-events: auto; }
+
         /* 折线图背景 */
         .message-text.vditor-reset svg g.main rect.background { fill: var(--muted); }
 
@@ -1474,6 +1481,44 @@
                 </div>
 
                 <div class="section-divider"></div>
+                <h3>TTS 语音朗读（全局）</h3>
+                <div class="form-group">
+                    <label>TTS Base URL *</label>
+                    <input type="text" id="globalTTSBaseUrl" placeholder="https://your-domain.com" required>
+                </div>
+                <div class="form-group">
+                    <label>TTS API Key *</label>
+                    <input type="password" id="globalTTSApiKey" placeholder="用于 /tts 接口的 api_key 参数">
+                </div>
+                <div class="form-group">
+                    <label>Voice</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <select id="globalTTSVoice" style="flex:1;">
+                            <option value="">-- 选择 Voice 或点击刷新 --</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary" id="refreshVoicesBtn" title="刷新可用语音">刷新</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Style</label>
+                    <select id="globalTTSStyle">
+                        <option value="">-- 自动随 Voice 变化 --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Rate (-100~100)</label>
+                    <input type="number" id="globalTTSRate" min="-100" max="100" step="1" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Pitch (-100~100)</label>
+                    <input type="number" id="globalTTSPitch" min="-100" max="100" step="1" value="0">
+                </div>
+                <div class="form-group">
+                    <label>格式 (output)</label>
+                    <input type="text" id="globalTTSFormat" placeholder="audio-24khz-48kbitrate-mono-mp3">
+                </div>
+
+                <div class="section-divider"></div>
                 <h3>系统提示显示</h3>
                 <div class="form-group">
                     <label>系统提示显示级别</label>
@@ -1569,6 +1614,50 @@
                     <div class="form-group">
                         <label>Max Tokens</label>
                         <input type="number" id="agentMaxTokens" min="1" max="32000" value="2000">
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+                <h3>TTS 配置</h3>
+                <div class="config-toggle">
+                    <input type="checkbox" id="agentTTSUseGlobal" checked>
+                    <label for="agentTTSUseGlobal" style="margin-bottom:0;">使用全局配置</label>
+                </div>
+                <div class="config-section hidden" id="agentTTSConfigSection">
+                    <div class="form-group">
+                        <label>TTS Base URL *</label>
+                        <input type="text" id="agentTTSBaseUrl" placeholder="https://your-domain.com">
+                    </div>
+                    <div class="form-group">
+                        <label>TTS API Key *</label>
+                        <input type="password" id="agentTTSApiKey" placeholder="用于 /tts 接口的 api_key 参数">
+                    </div>
+                    <div class="form-group">
+                        <label>Voice</label>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <select id="agentTTSVoice" style="flex:1;">
+                                <option value="">-- 选择 Voice 或点击刷新 --</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" id="agentRefreshVoicesBtn">刷新</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Style</label>
+                        <select id="agentTTSStyle">
+                            <option value="">-- 自动随 Voice 变化 --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Rate (-100~100)</label>
+                        <input type="number" id="agentTTSRate" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Pitch (-100~100)</label>
+                        <input type="number" id="agentTTSPitch" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>格式 (output)</label>
+                        <input type="text" id="agentTTSFormat" placeholder="audio-24khz-48kbitrate-mono-mp3">
                     </div>
                 </div>
 
@@ -1705,7 +1794,16 @@
             model: 'gpt-3.5-turbo',
             models: [],
             systemMsgLevel: 'all',
-            themeMode: 'system'
+            themeMode: 'system',
+            tts: {
+                baseUrl: 'https://your-domain.com',
+                apiKey: '',
+                voice: 'zh-CN-XiaoxiaoMultilingualNeural',
+                style: 'general',
+                rate: 0,
+                pitch: 0,
+                format: 'audio-24khz-48kbitrate-mono-mp3'
+            }
         };
 
         let openaiClients = {};
@@ -1724,6 +1822,15 @@
             userSettingsModal: qs('#userSettingsModal'),
             systemMsgLevel: qs('#systemMsgLevel'),
             themeMode: qs('#themeMode'),
+            // Global TTS
+            globalTTSBaseUrl: qs('#globalTTSBaseUrl'),
+            globalTTSApiKey: qs('#globalTTSApiKey'),
+            globalTTSVoice: qs('#globalTTSVoice'),
+            refreshVoicesBtn: qs('#refreshVoicesBtn'),
+            globalTTSStyle: qs('#globalTTSStyle'),
+            globalTTSRate: qs('#globalTTSRate'),
+            globalTTSPitch: qs('#globalTTSPitch'),
+            globalTTSFormat: qs('#globalTTSFormat'),
             
             createGroupBtn: qs('#createGroupBtn'),
             cancelGroupModalBtn: qs('#cancelGroupModalBtn'),
@@ -1757,6 +1864,17 @@
             agentModel: qs('#agentModel'),
             agentTemperature: qs('#agentTemperature'),
             agentMaxTokens: qs('#agentMaxTokens'),
+            // Agent TTS
+            agentTTSUseGlobal: qs('#agentTTSUseGlobal'),
+            agentTTSConfigSection: qs('#agentTTSConfigSection'),
+            agentTTSBaseUrl: qs('#agentTTSBaseUrl'),
+            agentTTSApiKey: qs('#agentTTSApiKey'),
+            agentTTSVoice: qs('#agentTTSVoice'),
+            agentRefreshVoicesBtn: qs('#agentRefreshVoicesBtn'),
+            agentTTSStyle: qs('#agentTTSStyle'),
+            agentTTSRate: qs('#agentTTSRate'),
+            agentTTSPitch: qs('#agentTTSPitch'),
+            agentTTSFormat: qs('#agentTTSFormat'),
             agentModal: qs('#agentModal'),
             agentModalTitle: qs('#agentModalTitle'),
             agentList: qs('#agentList'),
@@ -1869,6 +1987,14 @@
             if (savedSettings) globalSettings = JSON.parse(savedSettings);
             if (!globalSettings.systemMsgLevel) {
                 globalSettings.systemMsgLevel = 'all';
+            }
+            if (!globalSettings.tts) {
+                globalSettings.tts = { baseUrl: 'https://your-domain.com', apiKey: '', voice: 'zh-CN-XiaoxiaoMultilingualNeural', style: 'general', rate: 0, pitch: 0, format: 'audio-24khz-48kbitrate-mono-mp3' };
+            } else {
+                const t = globalSettings.tts;
+                if (t.rate === undefined) t.rate = 0;
+                if (t.pitch === undefined) t.pitch = 0;
+                if (!t.format) t.format = 'audio-24khz-48kbitrate-mono-mp3';
             }
         }
 
@@ -2153,6 +2279,54 @@
                 el.globalApiKey.addEventListener('change', onApiKeyChange);
             }
 
+            // Global TTS bindings
+            if (el.globalTTSBaseUrl) {
+                const on = () => { globalSettings.tts.baseUrl = el.globalTTSBaseUrl.value || ''; saveData(); };
+                el.globalTTSBaseUrl.addEventListener('input', on); el.globalTTSBaseUrl.addEventListener('change', on);
+            }
+            if (el.globalTTSApiKey) {
+                const on = () => { globalSettings.tts.apiKey = el.globalTTSApiKey.value || ''; saveData(); };
+                el.globalTTSApiKey.addEventListener('input', on); el.globalTTSApiKey.addEventListener('change', on);
+            }
+            if (el.globalTTSVoice) {
+                el.globalTTSVoice.addEventListener('change', () => {
+                    globalSettings.tts.voice = el.globalTTSVoice.value || '';
+                    // update styles according to selected voice
+                    const base = (globalSettings.tts.baseUrl||'').replace(/\/$/,'');
+                    const voices = ttsVoicesCache.get(base) || [];
+                    fillStyleSelect(el.globalTTSStyle, voices, el.globalTTSVoice.value, globalSettings.tts.style);
+                    saveData();
+                });
+            }
+            if (el.globalTTSStyle) {
+                el.globalTTSStyle.addEventListener('change', () => {
+                    globalSettings.tts.style = el.globalTTSStyle.value || '';
+                    saveData();
+                });
+            }
+            if (el.globalTTSRate) {
+                el.globalTTSRate.addEventListener('input', () => { globalSettings.tts.rate = parseInt(el.globalTTSRate.value||'0',10)||0; saveData(); });
+            }
+            if (el.globalTTSPitch) {
+                el.globalTTSPitch.addEventListener('input', () => { globalSettings.tts.pitch = parseInt(el.globalTTSPitch.value||'0',10)||0; saveData(); });
+            }
+            if (el.globalTTSFormat) {
+                const on = () => { globalSettings.tts.format = el.globalTTSFormat.value || 'audio-24khz-48kbitrate-mono-mp3'; saveData(); };
+                el.globalTTSFormat.addEventListener('input', on); el.globalTTSFormat.addEventListener('change', on);
+            }
+            if (el.refreshVoicesBtn) {
+                el.refreshVoicesBtn.addEventListener('click', async () => {
+                    try {
+                        const voices = await fetchVoices(globalSettings.tts.baseUrl);
+                        const base = (globalSettings.tts.baseUrl||'').replace(/\/$/,'');
+                        ttsVoicesCache.set(base, voices);
+                        fillVoiceSelect(el.globalTTSVoice, voices, globalSettings.tts.voice);
+                        fillStyleSelect(el.globalTTSStyle, voices, el.globalTTSVoice.value, globalSettings.tts.style);
+                        showToast('已刷新 Voices', 'success');
+                    } catch (_) { showToast('刷新 Voices 失败', 'error'); }
+                });
+            }
+
             // 群聊配置中的数值：即时生效（编辑模式）
             if (el.groupMaxRounds) {
                 el.groupMaxRounds.addEventListener('input', () => {
@@ -2204,6 +2378,32 @@
             el.agentUseGlobal.addEventListener('change', toggleAgentConfig);
             el.refreshModelsBtn.addEventListener('click', loadModels);
             if (el.agentRefreshModelsBtn) el.agentRefreshModelsBtn.addEventListener('click', loadAgentModels);
+
+            // Agent TTS bindings
+            if (el.agentTTSUseGlobal) el.agentTTSUseGlobal.addEventListener('change', toggleAgentTTSConfig);
+            if (el.agentRefreshVoicesBtn) {
+                el.agentRefreshVoicesBtn.addEventListener('click', async () => {
+                    const useGlobal = el.agentTTSUseGlobal?.checked !== false;
+                    const baseUrl = useGlobal ? globalSettings.tts.baseUrl : (el.agentTTSBaseUrl?.value || globalSettings.tts.baseUrl);
+                    try {
+                        const voices = await fetchVoices(baseUrl);
+                        const base = (baseUrl||'').replace(/\/$/,'');
+                        ttsVoicesCache.set(base, voices);
+                        fillVoiceSelect(el.agentTTSVoice, voices, el.agentTTSVoice?.value || '');
+                        fillStyleSelect(el.agentTTSStyle, voices, el.agentTTSVoice?.value || '', el.agentTTSStyle?.value || '');
+                        showToast('已刷新 Voices', 'success');
+                    } catch (_) { showToast('刷新 Voices 失败', 'error'); }
+                });
+            }
+            if (el.agentTTSVoice) {
+                el.agentTTSVoice.addEventListener('change', () => {
+                    const useGlobal = el.agentTTSUseGlobal?.checked !== false;
+                    const baseUrl = useGlobal ? globalSettings.tts.baseUrl : (el.agentTTSBaseUrl?.value || globalSettings.tts.baseUrl);
+                    const base = (baseUrl||'').replace(/\/$/,'');
+                    const voices = ttsVoicesCache.get(base) || [];
+                    fillStyleSelect(el.agentTTSStyle, voices, el.agentTTSVoice.value, el.agentTTSStyle?.value || '');
+                });
+            }
 
             el.toggleSidebarBtn.addEventListener('click', toggleSidebar);
             el.toggleRightSidebarBtn.addEventListener('click', toggleRightSidebar);
@@ -2294,6 +2494,17 @@
                         downloadFile(filename, content);
                         showToast('已导出 Markdown 文件', 'success');
                     }
+                    return;
+                }
+                // 语音朗读：单个气泡
+                const readBtn = e.target.closest('[data-action="tts-read"]');
+                if (readBtn) {
+                    e.stopPropagation();
+                    const bubble = readBtn.closest('.message-text');
+                    const msgRoot = readBtn.closest('.message');
+                    const msgId = msgRoot?.getAttribute('data-msg-id') || '';
+                    const text = getBubblePlainText(bubble);
+                    playTTS(text, msgId, bubble);
                     return;
                 }
                 // 移动端：点击消息内容显示工具条，并重置单一计时器
@@ -2483,6 +2694,18 @@
             el.globalBaseUrl.value = globalSettings.baseUrl;
             el.globalApiKey.value = globalSettings.apiKey;
             el.globalModel.value = globalSettings.model;
+            // TTS
+            if (el.globalTTSBaseUrl) el.globalTTSBaseUrl.value = globalSettings.tts?.baseUrl || '';
+            if (el.globalTTSApiKey) el.globalTTSApiKey.value = globalSettings.tts?.apiKey || '';
+            if (el.globalTTSRate) el.globalTTSRate.value = globalSettings.tts?.rate ?? 0;
+            if (el.globalTTSPitch) el.globalTTSPitch.value = globalSettings.tts?.pitch ?? 0;
+            if (el.globalTTSFormat) el.globalTTSFormat.value = globalSettings.tts?.format || '';
+            if (el.globalTTSVoice) {
+                const base = (globalSettings.tts?.baseUrl||'').replace(/\/$/,'');
+                const voices = ttsVoicesCache.get(base) || [];
+                fillVoiceSelect(el.globalTTSVoice, voices, globalSettings.tts?.voice || '');
+                fillStyleSelect(el.globalTTSStyle, voices, el.globalTTSVoice.value, globalSettings.tts?.style || '');
+            }
             if (el.systemMsgLevel) {
                 el.systemMsgLevel.value = globalSettings.systemMsgLevel || 'all';
             }
@@ -2502,6 +2725,15 @@
             globalSettings.baseUrl = el.globalBaseUrl.value;
             globalSettings.apiKey = el.globalApiKey.value;
             globalSettings.model = el.globalModel.value;
+            // TTS
+            if (!globalSettings.tts) globalSettings.tts = {};
+            globalSettings.tts.baseUrl = el.globalTTSBaseUrl?.value || globalSettings.tts.baseUrl;
+            globalSettings.tts.apiKey = el.globalTTSApiKey?.value || globalSettings.tts.apiKey;
+            globalSettings.tts.voice = el.globalTTSVoice?.value || globalSettings.tts.voice;
+            globalSettings.tts.style = el.globalTTSStyle?.value || globalSettings.tts.style;
+            globalSettings.tts.rate = parseInt(el.globalTTSRate?.value || '0', 10) || 0;
+            globalSettings.tts.pitch = parseInt(el.globalTTSPitch?.value || '0', 10) || 0;
+            globalSettings.tts.format = el.globalTTSFormat?.value || globalSettings.tts.format;
             if (el.systemMsgLevel) {
                 globalSettings.systemMsgLevel = el.systemMsgLevel.value || 'all';
             }
@@ -2648,12 +2880,14 @@
                         style: globalSettings.themeMode === "dark" ? "base16/dracula" : "github"
                     },
                     after: () => {
+                        ensureTTSBtn(mdel);
                         if (shouldAutoScroll) {
                             el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
                         }
                     }
                 };
                 schedulePreview(mdel, text, opts, 180);
+                ensureTTSBtn(mdel);
                 cacheSet(key, mdel);
             }
             return mdel;
@@ -2661,6 +2895,11 @@
 
         // 每条消息内容区域的移动端工具条隐藏计时器
         const mobileToolsTimers = new WeakMap();
+
+        // TTS caches
+        const ttsAudioCache = new Map(); // key -> ObjectURL
+        const ttsVoicesCache = new Map(); // baseUrl -> voices array
+        let currentAudio = null;
 
         // ===== 工具：提取消息 Markdown、下载文件、移动端判断 =====
         function getMessageMarkdownFromEl(msgRoot) {
@@ -2686,6 +2925,116 @@
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+        }
+
+        function ensureTTSBtn(container) {
+            if (!container || !container.classList.contains('message-text')) return;
+            if (container.querySelector('.tts-read-btn')) return;
+            const btn = document.createElement('button');
+            btn.className = 'tts-read-btn';
+            btn.setAttribute('data-action', 'tts-read');
+            btn.setAttribute('title', '朗读');
+            btn.setAttribute('aria-label', '朗读');
+            btn.textContent = '🔊';
+            container.appendChild(btn);
+        }
+
+        function getBubblePlainText(bubble) {
+            if (!bubble) return '';
+            return (bubble.innerText || '').trim();
+        }
+
+        function resolveTTSConfig(agent, global) {
+            const g = global.tts || {};
+            if (!agent || agent.ttsUseGlobal !== false) {
+                return { ...g };
+            }
+            const a = agent.tts || {};
+            return {
+                baseUrl: a.baseUrl || g.baseUrl,
+                apiKey: a.apiKey || g.apiKey,
+                voice: a.voice || g.voice,
+                style: a.style || g.style || 'general',
+                rate: (a.rate !== undefined ? a.rate : g.rate || 0),
+                pitch: (a.pitch !== undefined ? a.pitch : g.pitch || 0),
+                format: a.format || g.format || 'audio-24khz-48kbitrate-mono-mp3'
+            };
+        }
+
+        function buildTTSUrl(text, cfg) {
+            const u = new URL((cfg.baseUrl || '').replace(/\/$/, '') + '/tts');
+            if (cfg.apiKey) u.searchParams.set('api_key', cfg.apiKey);
+            u.searchParams.set('t', text);
+            if (cfg.voice) u.searchParams.set('v', cfg.voice);
+            if (cfg.rate !== undefined) u.searchParams.set('r', String(cfg.rate));
+            if (cfg.pitch !== undefined) u.searchParams.set('p', String(cfg.pitch));
+            if (cfg.style) u.searchParams.set('s', cfg.style);
+            if (cfg.format) u.searchParams.set('o', cfg.format);
+            return u.toString();
+        }
+
+        async function playTTS(text, msgId, bubbleEl) {
+            const group = groups.find(g => g.id === currentGroupId);
+            const msg = group?.messages?.find(m => m.id === msgId);
+            const agent = (msg && msg.role === 'assistant') ? agents.find(a => a.id === msg.agentId) : null;
+            const cfg = resolveTTSConfig(agent, globalSettings);
+            const plain = text.trim();
+            if (!plain) { showToast('暂无可朗读内容', 'warning'); return; }
+            if (!cfg.baseUrl) { showToast('请先配置 TTS Base URL', 'warning'); return; }
+            const key = (await hash(`${plain}|${JSON.stringify(cfg)}`)).slice(0, 48);
+            try {
+                if (currentAudio) { try { currentAudio.pause(); } catch (_) {} }
+                let src = ttsAudioCache.get(key);
+                if (!src) {
+                    const url = buildTTSUrl(plain, cfg);
+                    const resp = await fetch(url);
+                    if (!resp.ok) throw new Error('TTS 请求失败');
+                    const blob = await resp.blob();
+                    src = URL.createObjectURL(blob);
+                    ttsAudioCache.set(key, src);
+                }
+                const audio = new Audio(src);
+                currentAudio = audio;
+                audio.play().catch(()=>{});
+            } catch (e) {
+                showToast('朗读失败', 'error');
+            }
+        }
+
+        async function fetchVoices(baseUrl) {
+            const key = (baseUrl || '').replace(/\/$/, '');
+            if (ttsVoicesCache.has(key)) return ttsVoicesCache.get(key);
+            const url = key + '/voices';
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('获取 voices 失败');
+            const data = await resp.json();
+            ttsVoicesCache.set(key, data);
+            return data;
+        }
+
+        function fillVoiceSelect(selectEl, voices, current) {
+            if (!selectEl) return;
+            const opts = (voices || []).map(v => `<option value="${v.ShortName}">${v.ShortName}${v.LocalName?` / ${v.LocalName}`:''}</option>`).join('');
+            selectEl.innerHTML = `<option value="">-- 选择 Voice --</option>` + opts;
+            if (current) {
+                const has = Array.from(selectEl.options).some(o=>o.value===current);
+                if (!has) {
+                    const opt = document.createElement('option'); opt.value = current; opt.textContent = current; selectEl.appendChild(opt);
+                }
+                selectEl.value = current;
+            }
+        }
+
+        function fillStyleSelect(selectEl, voices, voiceValue, currentStyle) {
+            if (!selectEl) return;
+            let styles = [];
+            if (voices && voiceValue) {
+                const v = voices.find(x => x.ShortName === voiceValue);
+                styles = v?.StyleList || [];
+            }
+            const options = [''].concat(styles).map(s => `<option value="${s}">${s||'-- 自动 --'}</option>`).join('');
+            selectEl.innerHTML = options;
+            if (currentStyle) selectEl.value = currentStyle;
         }
 
         /**
@@ -2950,6 +3299,8 @@
             el.agentColor.value = generateRandomColor();
             el.agentUseGlobal.checked = true;
             toggleAgentConfig();
+            if (el.agentTTSUseGlobal) { el.agentTTSUseGlobal.checked = true; }
+            toggleAgentTTSConfig();
             // 初始化权限（仅当前群）
             const group = groups.find(g => g.id === currentGroupId);
             if (group) {
@@ -2993,6 +3344,13 @@
             setAgentConfigPlaceholders(agentConfig);
         }
 
+        function toggleAgentTTSConfig() {
+            const useGlobal = el.agentTTSUseGlobal?.checked !== false;
+            if (el.agentTTSConfigSection) {
+                el.agentTTSConfigSection.classList.toggle('hidden', useGlobal);
+            }
+        }
+
         function editAgent(index) {
             currentEditingAgent = index;
             const agent = agents[index];
@@ -3010,6 +3368,23 @@
             el.agentModal.value = agentConfig.model || '';
             el.agentTemperature.value = agentConfig.temperature || 0.7;
             el.agentMaxTokens.value = agentConfig.maxTokens || 2000;
+
+            // TTS
+            if (el.agentTTSUseGlobal) el.agentTTSUseGlobal.checked = agent.ttsUseGlobal !== false;
+            toggleAgentTTSConfig();
+            const ttsCfg = resolveTTSConfig(agent, globalSettings);
+            if (agent.ttsUseGlobal === false && agent.tts) {
+                if (el.agentTTSBaseUrl) el.agentTTSBaseUrl.value = agent.tts.baseUrl || '';
+                if (el.agentTTSApiKey) el.agentTTSApiKey.value = agent.tts.apiKey || '';
+            } else {
+                if (el.agentTTSBaseUrl) el.agentTTSBaseUrl.placeholder = ttsCfg.baseUrl || '';
+                if (el.agentTTSApiKey) el.agentTTSApiKey.placeholder = '留空以使用全局 TTS API Key';
+            }
+            if (el.agentTTSVoice) el.agentTTSVoice.value = ttsCfg.voice || '';
+            if (el.agentTTSStyle) el.agentTTSStyle.value = ttsCfg.style || '';
+            if (el.agentTTSRate) el.agentTTSRate.value = ttsCfg.rate ?? 0;
+            if (el.agentTTSPitch) el.agentTTSPitch.value = ttsCfg.pitch ?? 0;
+            if (el.agentTTSFormat) el.agentTTSFormat.value = ttsCfg.format || '';
 
             // 权限（仅当前群）
             const group = groups.find(g => g.id === currentGroupId);
@@ -3061,6 +3436,21 @@
                 if (el.agentApiKey.value) agent.apiKey = el.agentApiKey.value;
                 if (el.agentTemperature.value !== '') agent.temperature = parseFloat(el.agentTemperature.value);
                 if (el.agentMaxTokens.value !== '') agent.maxTokens = parseInt(el.agentMaxTokens.value);
+            }
+
+            // TTS per-agent
+            agent.ttsUseGlobal = el.agentTTSUseGlobal?.checked !== false;
+            if (agent.ttsUseGlobal === false) {
+                agent.tts = agent.tts || {};
+                if (el.agentTTSBaseUrl?.value) agent.tts.baseUrl = el.agentTTSBaseUrl.value;
+                if (el.agentTTSApiKey?.value) agent.tts.apiKey = el.agentTTSApiKey.value;
+                if (el.agentTTSVoice?.value) agent.tts.voice = el.agentTTSVoice.value;
+                if (el.agentTTSStyle?.value) agent.tts.style = el.agentTTSStyle.value;
+                if (el.agentTTSRate?.value !== '') agent.tts.rate = parseInt(el.agentTTSRate.value||'0',10)||0;
+                if (el.agentTTSPitch?.value !== '') agent.tts.pitch = parseInt(el.agentTTSPitch.value||'0',10)||0;
+                if (el.agentTTSFormat?.value) agent.tts.format = el.agentTTSFormat.value;
+            } else {
+                delete agent.tts;
             }
 
             if (currentEditingAgent !== null) {
