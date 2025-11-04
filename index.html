@@ -1152,8 +1152,7 @@
         .message-text { background: var(--bubble-bg-ai); color: var(--text); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); line-height: 1.6; }
         .message.user .message-text { background: var(--bubble-bg-user); color: var(--bubble-fg-user); border-color: color-mix(in oklab, var(--brand) 35%, var(--border)); }
         .message-bubbles { gap: 8px; }
-        .message-avatar { box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
-        .message-avatar[data-agent-id] { cursor: pointer; }
+        .message-avatar { box-shadow: var(--shadow-sm); border: 1px solid var(--border); cursor: pointer; }
 
         .chat-input { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--border); backdrop-filter: blur(6px); z-index: 10; padding: 14px 16px; }
         .chat-input textarea { background: var(--control-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; color: var(--text); caret-color: var(--text); color-scheme: light dark; }
@@ -1535,7 +1534,7 @@
                         <label>模型</label>
                         <div style="display:flex; gap:10px;">
                             <select id="agentModel" style="flex:1;">
-                                <option value="">-- 选择模型 --</option>
+                                <option value="">-- 选择模型或点击刷新 --</option>
                                 <option value="gpt-4-turbo">gpt-4-turbo</option>
                                 <option value="gpt-4">gpt-4</option>
                                 <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
@@ -2029,7 +2028,6 @@
 
         function updateModelSelects() {
             const defaultModels = [
-                { value: '', text: '-- 选择模型或点击刷新 --' },
                 { value: 'gpt-4-turbo', text: 'gpt-4-turbo' },
                 { value: 'gpt-4', text: 'gpt-4' },
                 { value: 'gpt-3.5-turbo', text: 'gpt-3.5-turbo' },
@@ -2047,13 +2045,17 @@
                     options = globalSettings.models
                         .map(model => `<option value="${model}">${model}</option>`)
                         .join('');
+                    const has = Array.from(globalSettings.models).some(o => o.value === globalSettings.model);
+                    if (!has) {
+                        options += `<option value="${globalSettings.model}">${globalSettings.model}</option>`;
+                    }
                 } else {
                     options = defaultModels
                         .map(m => `<option value="${m.value}">${m.text}</option>`)
                         .join('');
                 }
                 
-                select.innerHTML = options;
+                select.innerHTML = `<option>-- 选择模型或点击刷新 --</option>` + options;
                 if (currentValue) {
                     select.value = currentValue;
                     if (select.value !== currentValue) {
@@ -2261,11 +2263,15 @@
                     return;
                 }
 
-                const avatar = e.target.closest('.message-avatar[data-agent-id]');
+                const avatar = e.target.closest('.message-avatar');
                 if (!avatar) return;
                 const id = avatar.getAttribute('data-agent-id');
-                const idx = agents.findIndex(a => a.id === id);
-                if (idx !== -1) editAgent(idx);
+                if (id) {
+                    const idx = agents.findIndex(a => a.id === id);
+                    if (idx !== -1) editAgent(idx);
+                } else {
+                    openUserSettingsModal();
+                }
             });
 
             // 仅当用户位于底部时自动置底，并在未置底时显示悬浮按钮
@@ -2389,11 +2395,11 @@
         }
 
         function openUserSettingsModal() {
+            updateModelSelects();
             el.userNickname.value = globalSettings.userName;
             el.globalBaseUrl.value = globalSettings.baseUrl;
             el.globalApiKey.value = globalSettings.apiKey;
             el.globalModel.value = globalSettings.model;
-            updateModelSelects();
             if (el.systemMsgLevel) {
                 el.systemMsgLevel.value = globalSettings.systemMsgLevel || 'all';
             }
@@ -2441,10 +2447,7 @@
                 return;
             }
 
-            if (list.length === 0) {
-                el.agentList.innerHTML = '<div class="empty-state"><p>该群聊暂无角色</p></div>';
-                return;
-            }
+            // 不再在列表为空时提前返回；保持显示“当前用户”
 
             const isAll = group.isAllAgentsGroup === true;
             // prepend current user as a pseudo member on top
@@ -2480,82 +2483,6 @@
                 `;
             }).join('');
             el.agentList.innerHTML = userItemHtml + agentsHtml;
-        }
-
-        function openContextModal(agentId) {
-            const group = groups.find(g => g.id === currentGroupId);
-            if (!group) return;
-            const agent = agents.find(a => a.id === agentId);
-            if (!agent) return;
-            const settings = getAgentGroupSettings(group, agentId);
-            el.contextAgentName.textContent = agent.name;
-
-            // Build member lists
-            const members = (group.agentIds||[]).map(id => agents.find(a=>a.id===id)).filter(Boolean);
-            const makeList = (container, selected) => {
-                container.innerHTML = members.map(m => {
-                    const checked = Array.isArray(selected) ? selected.includes(m.id) : false;
-                    return `<div class="checkbox-item"><input type="checkbox" id="ctx_${container.id}_${m.id}" value="${m.id}" ${checked?'checked':''}><label for="ctx_${container.id}_${m.id}" style="margin:0;"><span class="agent-color" style="background:${m.color}"></span>${m.name}</label></div>`;
-                }).join('');
-            };
-
-            // iCanSee
-            const seeMode = (settings.perspective?.iCanSee === 'all') ? 'all' : 'custom';
-            qsa('input[name="seeMode"]').forEach(r=>{ r.checked = (r.value===seeMode); });
-            el.contextICanSeeList.style.display = seeMode==='custom' ? '' : 'none';
-            makeList(el.contextICanSeeList, seeMode==='custom' ? (settings.perspective?.iCanSee||[]) : []);
-
-            // canSeeMe
-            const seenMode = (settings.perspective?.canSeeMe === 'all') ? 'all' : 'custom';
-            qsa('input[name="seenMode"]').forEach(r=>{ r.checked = (r.value===seenMode); });
-            el.contextCanSeeMeList.style.display = seenMode==='custom' ? '' : 'none';
-            makeList(el.contextCanSeeMeList, seenMode==='custom' ? (settings.perspective?.canSeeMe||[]) : []);
-
-            // vision
-            const v = settings.vision || { type:'all' };
-            el.contextVisionType.value = v.type || 'all';
-            el.contextVisionExpr.value = v.expr || '';
-            el.contextVisionExprWrap.style.display = (v.type==='custom') ? '' : 'none';
-
-            // toggle handlers for radios
-            qsa('input[name="seeMode"]').forEach(r=>{
-                r.onchange = () => { el.contextICanSeeList.style.display = r.value==='custom' && r.checked ? '' : 'none'; };
-            });
-            qsa('input[name="seenMode"]').forEach(r=>{
-                r.onchange = () => { el.contextCanSeeMeList.style.display = r.value==='custom' && r.checked ? '' : 'none'; };
-            });
-
-            el.contextForm.dataset.agentId = agentId;
-            el.contextModal.classList.add('active');
-        }
-
-        function closeContextModal() {
-            el.contextModal.classList.remove('active');
-            el.contextForm.removeAttribute('data-agent-id');
-        }
-
-        function saveContextSettings() {
-            const group = groups.find(g => g.id === currentGroupId);
-            if (!group) return;
-            const agentId = el.contextForm.dataset.agentId;
-            if (!agentId) return;
-            const settings = getAgentGroupSettings(group, agentId);
-
-            const seeMode = (qsa('input[name="seeMode"]').find(r=>r.checked)?.value) || 'all';
-            const seenMode = (qsa('input[name="seenMode"]').find(r=>r.checked)?.value) || 'all';
-            if (seeMode === 'all') settings.perspective.iCanSee = 'all';
-            else settings.perspective.iCanSee = Array.from(el.contextICanSeeList.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
-
-            if (seenMode === 'all') settings.perspective.canSeeMe = 'all';
-            else settings.perspective.canSeeMe = Array.from(el.contextCanSeeMeList.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
-
-            const vt = el.contextVisionType.value || 'all';
-            settings.vision.type = vt;
-            settings.vision.expr = (vt==='custom') ? (el.contextVisionExpr.value || '') : '';
-
-            saveData();
-            closeContextModal();
-            showToast('已保存上下文设置', 'success');
         }
 
         function renderGroups() {
@@ -2906,8 +2833,6 @@
             el.agentColor.value = generateRandomColor();
             el.agentUseGlobal.checked = true;
             toggleAgentConfig();
-            el.agentModel.value = globalSettings.model;
-            setAgentConfigPlaceholders();
             // 初始化权限（仅当前群）
             const group = groups.find(g => g.id === currentGroupId);
             if (group) {
@@ -2939,7 +2864,7 @@
             el.agentModal.classList.remove('active');
         }
 
-        function toggleAgentConfig() {
+        function toggleAgentConfig(agentConfig) {
             const useGlobal = el.agentUseGlobal.checked;
             
             if (useGlobal) {
@@ -2947,7 +2872,7 @@
             } else {
                 el.agentConfigSection.classList.remove('hidden');
             }
-            setAgentConfigPlaceholders();
+            setAgentConfigPlaceholders(agentConfig);
         }
 
         function editAgent(index) {
@@ -2959,16 +2884,15 @@
             el.agentPrompt.value = agent.prompt;
             el.agentColor.value = agent.color;
             el.agentUseGlobal.checked = agent.useGlobal !== false;
-            toggleAgentConfig();
-            
-            if (!agent.useGlobal) {
-                el.agentBaseUrl.value = agent.baseUrl || '';
-                el.agentApiKey.value = agent.apiKey || '';
-                el.agentTemperature.value = agent.temperature || 0.7;
-                el.agentMaxTokens.value = agent.maxTokens || 2000;
-            }
-            el.agentModel.value = agent.model || globalSettings.model;
-            setAgentConfigPlaceholders();
+
+            const agentConfig = resolveAgentConfig(agent, globalSettings);
+            toggleAgentConfig(agentConfig);
+            el.agentBaseUrl.value = agentConfig.baseUrl || '';
+            el.agentApiKey.value = agentConfig.apiKey || '';
+            el.agentModal.value = agentConfig.model || '';
+            el.agentTemperature.value = agentConfig.temperature || 0.7;
+            el.agentMaxTokens.value = agentConfig.maxTokens || 2000;
+
             // 权限（仅当前群）
             const group = groups.find(g => g.id === currentGroupId);
             if (group) {
@@ -3871,17 +3795,18 @@
         function resolveAgentConfig(agent, global) {
             const useGlobal = agent.useGlobal !== false;
             const base = useGlobal ? {} : agent;
+
             return {
                 baseUrl: useGlobal ? global.baseUrl : (base.baseUrl || global.baseUrl),
                 apiKey: useGlobal ? global.apiKey : (base.apiKey || global.apiKey),
-                model: useGlobal ? (agent.model || global.model) : (base.model || global.model),
+                model: useGlobal ? global.model : (base.model || global.model),
                 temperature: useGlobal ? (agent.temperature ?? 0.7) : (base.temperature ?? 0.7),
                 maxTokens: useGlobal ? (agent.maxTokens ?? 2000) : (base.maxTokens ?? 2000)
             };
         }
 
         // 设置 Agent 配置输入的占位符/默认选项
-        function setAgentConfigPlaceholders() {
+        function setAgentConfigPlaceholders(agentConfig) {
             if (el.agentBaseUrl) {
                 el.agentBaseUrl.placeholder = globalSettings.baseUrl || 'https://api.openai.com/v1';
             }
@@ -3889,10 +3814,7 @@
                 el.agentApiKey.placeholder = '留空以使用全局 API Key';
             }
             if (el.agentModel) {
-                if (!el.agentModel.value) {
-                    el.agentModel.value = globalSettings.model || '';
-                }
-                const desired = el.agentModel.value || (globalSettings.model || '');
+                const desired = agentConfig ? agentConfig.model : (globalSettings.model || '');
                 if (desired) {
                     const has = Array.from(el.agentModel.options).some(o => o.value === desired);
                     if (!has) {
