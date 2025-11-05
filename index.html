@@ -3879,6 +3879,7 @@
             const group = groups.find(g => g.id === currentGroupId);
             if (!group) return;
 
+            // 发送时强制置底
             shouldAutoScroll = true;
             scrollToBottom(true);
 
@@ -3894,11 +3895,20 @@
                 group.messages.push(userMessage);
                 el.userInput.value = '';
                 saveData();
-                // 发送时强制置底
                 renderMessages();
             }
 
             if (group.isAllAgentsGroup) {
+                return;
+            }
+
+            // Hidden override mode: if message @mentions specific roles, trigger them to reply in order
+            const mentionedAgents = getMentionedAgentsInContent(content, group);
+            if (mentionedAgents.length > 0) {
+                for (const ag of mentionedAgents) {
+                    await getAgentResponse(group, ag);
+                }
+                addSystemMessage(group, `自动回复已结束`, 'info');
                 return;
             }
 
@@ -4076,6 +4086,39 @@
             } else if (itemBottom > viewBottom) {
                 menu.scrollTop = itemBottom - menu.clientHeight;
             }
+        }
+
+        // Parse @mentions in the input content and return matched agents (ordered by appearance, unique)
+        function getMentionedAgentsInContent(text, group) {
+            try {
+                const t = String(text || '');
+                if (!t || !group || !Array.isArray(group.agentIds)) return [];
+                const list = group.agentIds.map(id => agents.find(a => a.id === id)).filter(Boolean);
+                if (list.length === 0) return [];
+                // Prefer longer names first on local matching to avoid substring collisions
+                const byLenDesc = list.slice().sort((a, b) => (b.name || '').length - (a.name || '').length);
+                const results = [];
+                const seen = new Set();
+                const isBoundary = (ch) => !ch || /[\s,，。\.\!\?;；:：\)\]\}]/.test(ch);
+                for (let i = 0; i < t.length; i++) {
+                    if (t[i] !== '@') continue;
+                    const start = i + 1;
+                    for (const ag of byLenDesc) {
+                        const name = ag.name || '';
+                        if (!name) continue;
+                        if (t.startsWith(name, start)) {
+                            const end = start + name.length;
+                            const nextCh = t[end];
+                            if (isBoundary(nextCh)) {
+                                if (!seen.has(ag.id)) { results.push(ag); seen.add(ag.id); }
+                                i = end - 1; // jump forward
+                                break;
+                            }
+                        }
+                    }
+                }
+                return results;
+            } catch (_) { return []; }
         }
 
         async function startGroupChatRoundRobin(group) {
