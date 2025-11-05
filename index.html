@@ -394,6 +394,11 @@
         /* TTS read button */
         .tts-read-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 6px; opacity: 0; pointer-events: none; display: inline-flex; align-items: center; justify-content: center; line-height: 1; box-shadow: var(--shadow-sm); }
         .message-text:hover .tts-read-btn { opacity: 1; pointer-events: auto; }
+        .tts-read-btn.loading { opacity: 1; pointer-events: auto; }
+        /* TTS progress bar (inline, stick to bubble bottom like border) */
+        .message-text { position: relative; }
+        .message-text .tts-progress-inline { position: absolute; padding: 0 6px; left: 0; right: 0; bottom: 0; height: 3px; background: var(--border); border-radius: var(--radius-sm); overflow: hidden; pointer-events: none; }
+        .message-text .tts-progress-inline .fill { height: 100%; width: 0%; background: var(--brand); transition: width 80ms linear; }
         /* Mobile: show with existing show-tools state to avoid extra handlers */
         .message-content.show-tools .message-text:active .tts-read-btn { opacity: 1; pointer-events: auto; }
 
@@ -2504,7 +2509,14 @@
                     const msgRoot = readBtn.closest('.message');
                     const msgId = msgRoot?.getAttribute('data-msg-id') || '';
                     const text = getBubblePlainText(bubble);
-                    playTTS(text, msgId, bubble);
+                    // 切换为加载状态
+                    try {
+                        if (!readBtn.dataset.label) readBtn.dataset.label = readBtn.textContent || '🔊';
+                        readBtn.disabled = true;
+                        readBtn.classList.add('loading');
+                        readBtn.textContent = '⏳';
+                    } catch (_) {}
+                    playTTS(text, msgId, bubble, readBtn);
                     return;
                 }
                 // 移动端：点击消息内容显示工具条，并重置单一计时器
@@ -2966,6 +2978,33 @@
             return (bubble.innerText || '').trim();
         }
 
+        // 过滤助手输出中的前缀形如 [角色名]: 或 [Name]：——全量清洗（不限开头）
+        function stripRoleNamePrefix(text) {
+            if (!text) return text;
+            return text.replace(/\[[^\]\n]{1,32}\]\s*[:：]\s*/g,'');
+        }
+
+        // 朗读专用：移除 emoji 及变体选择符/零宽连接符，避免 TTS 异常或不自然停顿
+        function stripEmojisForTTS(text) {
+            if (!text) return text;
+            // 常见 emoji 高代理对、杂项符号、变体选择符与 ZWJ
+            const re = /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]|[\u2011-\u26FF]|\uFE0F|\u200D)/g;
+            return text.replace(re, '');
+        }
+
+        function clearAllTTSProgress() {
+            qsa('.tts-progress-inline').forEach(el => el.remove());
+        }
+
+        function createTTSProgressInline(messageTextEl) {
+            if (!messageTextEl) return null;
+            const bar = document.createElement('div');
+            bar.className = 'tts-progress-inline';
+            bar.innerHTML = '<div class="fill"></div>';
+            messageTextEl.appendChild(bar);
+            return bar;
+        }
+
         function resolveTTSConfig(agent, global) {
             const g = global.tts || {};
             if (!agent || agent.ttsUseGlobal !== false) {
@@ -2995,12 +3034,12 @@
             return u.toString();
         }
 
-        async function playTTS(text, msgId, bubbleEl) {
+        async function playTTS(text, msgId, bubbleEl, btnEl) {
             const group = groups.find(g => g.id === currentGroupId);
             const msg = group?.messages?.find(m => m.id === msgId);
             const agent = (msg && msg.role === 'assistant') ? agents.find(a => a.id === msg.agentId) : null;
             const cfg = resolveTTSConfig(agent, globalSettings);
-            const plain = text.trim();
+            const plain = stripEmojisForTTS((text || '').trim());
             if (!plain) { showToast('暂无可朗读内容', 'warning'); return; }
             if (!cfg.baseUrl) { showToast('请先配置 TTS Base URL', 'warning'); return; }
             const key = hash(`${plain}|${JSON.stringify(cfg)}`);
@@ -3019,8 +3058,24 @@
                 }
                 const audio = new Audio(src);
                 currentAudio = audio;
-                audio.play().catch(()=>{});
+                // 进度条：清理旧的，绑定为“贴底边框”样式（气泡内部绝对定位）
+                clearAllTTSProgress();
+                const messageTextEl = bubbleEl?.closest('.message-text');
+                const bar = createTTSProgressInline(messageTextEl);
+                const fill = bar?.querySelector('.fill');
+                const setProgress = () => {
+                    if (!fill || !audio.duration || !isFinite(audio.duration)) return;
+                    const pct = Math.max(0, Math.min(1, audio.currentTime / audio.duration)) * 100;
+                    fill.style.width = pct.toFixed(2) + '%';
+                };
+                const restoreBtn = () => { try { if (btnEl) { btnEl.disabled = false; btnEl.classList.remove('loading'); btnEl.textContent = btnEl.dataset.label || '🔊'; } } catch (_) {} };
+                audio.addEventListener('playing', () => { restoreBtn(); setProgress(); }, { once: true });
+                audio.addEventListener('timeupdate', setProgress);
+                audio.addEventListener('error', () => { restoreBtn(); if (bar) bar.remove(); }, { once: true });
+                audio.addEventListener('ended', () => { try { if (btnEl) btnEl.textContent = btnEl.dataset.label || '🔊'; } catch (_) {} if (bar) bar.remove(); }, { once: true });
+                audio.play().catch(()=>{ restoreBtn(); });
             } catch (e) {
+                try { if (btnEl) { btnEl.disabled = false; btnEl.classList.remove('loading'); btnEl.textContent = btnEl.dataset.label || '🔊'; } } catch (_) {}
                 showToast('朗读失败', 'error');
             }
         }
@@ -4270,6 +4325,7 @@
                         if (visibleDelta) msgRef.status = 'streaming';
                     }
                     if (visibleDelta) {
+                        visibleDelta = stripRoleNamePrefix(visibleDelta);
                         let content = msgRef?.content ?? '';
                         if (content === '') {
                             visibleDelta = visibleDelta.trimStart();
