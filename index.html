@@ -1829,6 +1829,8 @@
 
         let openaiClients = {};
         const inflight = new Map(); // msgId -> { ac, stream? }
+        // 运行时状态（不持久化）：记录哪些群聊正在进行自动回复流程，避免重复触发
+        const runtime = { autoReplyRunning: new Set() };
 
         const el = {
             userSettingsBtn: qs('#userSettingsBtn'),
@@ -3898,6 +3900,11 @@
                 renderMessages();
             }
 
+            // 新需求：当处于“自动回复”流程中时，允许用户正常发言，但不再次触发任何自动回复流程
+            if (runtime.autoReplyRunning.has(group.id)) {
+                return;
+            }
+
             if (group.isAllAgentsGroup) {
                 return;
             }
@@ -3913,6 +3920,9 @@
             }
 
             if (group.autoReply) {
+                // 防止并发/重复触发：标记本群聊正在自动回复
+                runtime.autoReplyRunning.add(group.id);
+                try {
                 const mode = group.autoReplyMode || 'round_robin';
                 if (mode === 'round_robin') {
                     await startGroupChatRoundRobin(group);
@@ -3921,6 +3931,11 @@
                 } else {
                     await startGroupChatAISelector(group);
                 }
+                } finally {
+                    runtime.autoReplyRunning.delete(group.id);
+                    addSystemMessage(group, `自动回复已结束`, 'info');
+                }
+                return;
             }
             addSystemMessage(group, `自动回复已结束`, 'info');
         }
