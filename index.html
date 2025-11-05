@@ -342,6 +342,10 @@
             margin: 14px 0;
             line-height: 1.4;
             padding: 0 8px;
+            /* 这是推荐的标准方式 */
+            overflow-wrap: break-word;
+            /* 为了兼容旧版浏览器 */
+            word-wrap: break-word;
         }
         .system-message.system-info { color: #64748b; }
         .system-message.system-success { color: #16a34a; }
