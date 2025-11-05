@@ -4325,13 +4325,12 @@
                         if (visibleDelta) msgRef.status = 'streaming';
                     }
                     if (visibleDelta) {
-                        visibleDelta = stripRoleNamePrefix(visibleDelta);
                         let content = msgRef?.content ?? '';
                         if (content === '') {
                             visibleDelta = visibleDelta.trimStart();
                         }
                         content += visibleDelta;
-                        msgRef.content = content;
+                        msgRef.content = stripRoleNamePrefix(content);
                     }
 
                     inflight.set(msgId, { ...info, inThink: parts.inThinkAfter });
