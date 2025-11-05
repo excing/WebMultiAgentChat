@@ -3875,45 +3875,28 @@
         async function sendMessage() {
             const content = el.userInput.value.trim();
             if (!currentGroupId) return;
-            if (!content) {
-                const group = groups.find(g => g.id === currentGroupId);
-                if (!group || group.isAllAgentsGroup) return;
-                if (group.autoReply) {
-                    const mode = group.autoReplyMode || 'round_robin';
-                    if (mode === 'round_robin') {
-                        await startGroupChatRoundRobin(group);
-                    } else if (mode === 'random') {
-                        await startGroupChatRandom(group);
-                    } else {
-                        await startGroupChatAISelector(group);
-                    }
-                } else {
-                    const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
-                    if (groupAgents.length > 0) {
-                        await getAgentResponse(group, groupAgents[0]);
-                    }
-                }
-                return;
-            }
-            
+
             const group = groups.find(g => g.id === currentGroupId);
             if (!group) return;
 
-            const userMessage = {
-                id: generateId(),
-                role: 'user',
-                content: content,
-                timestamp: Date.now()
-            };
-
-            if (!group.messages) group.messages = [];
-            group.messages.push(userMessage);
-            el.userInput.value = '';
-            saveData();
-            // 发送时强制置底
             shouldAutoScroll = true;
-            renderMessages();
             scrollToBottom(true);
+
+            if (content) {
+                const userMessage = {
+                    id: generateId(),
+                    role: 'user',
+                    content: content,
+                    timestamp: Date.now()
+                };
+    
+                if (!group.messages) group.messages = [];
+                group.messages.push(userMessage);
+                el.userInput.value = '';
+                saveData();
+                // 发送时强制置底
+                renderMessages();
+            }
 
             if (group.isAllAgentsGroup) {
                 return;
@@ -3928,12 +3911,8 @@
                 } else {
                     await startGroupChatAISelector(group);
                 }
-            } else {
-                const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
-                if (groupAgents.length > 0) {
-                    await getAgentResponse(group, groupAgents[0]);
-                }
             }
+            addSystemMessage(group, `自动回复已结束`, 'info');
         }
 
         // --- Send button text ---
@@ -4121,8 +4100,8 @@
             const maxRounds = group.maxRounds || 0;
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
             if (groupAgents.length === 0) return;
-            // 随机决定本轮会进行的回复次数（上限为 maxRounds，至少 1 次）
-            const totalRounds = Math.max(1, Math.floor(Math.random() * Math.max(1, maxRounds)) + 1);
+            // 随机决定本轮会进行的回复次数（上限为 maxRounds，至少 1/3 次）
+            const totalRounds = Math.max(Math.floor(maxRounds / 3), Math.floor(Math.random() * Math.max(1, maxRounds)) + 1);
             let lastAgentId = null;
             for (let i = 0; i < totalRounds; i++) {
                 let candidate;
