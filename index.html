@@ -2519,6 +2519,45 @@
                     }
                     return;
                 }
+                // 工具条：删除消息（用户与角色均可）
+                const delBtn = e.target.closest('[data-action="delete-msg"]');
+                if (delBtn) {
+                    e.stopPropagation();
+                    const msgRoot = delBtn.closest('.message');
+                    const msgId = msgRoot?.getAttribute('data-msg-id') || '';
+                    const group = groups.find(g => g.id === currentGroupId);
+                    if (!group || !msgId) return;
+                    const idx = (group.messages || []).findIndex(m => m && m.id === msgId);
+                    if (idx !== -1) {
+                        const removed = group.messages[idx];
+                        if (!removed || (removed.role !== 'assistant' && removed.role !== 'user')) { showToast('仅可删除用户或角色消息', 'warning'); return; }
+                        if (removed.role === 'assistant') {
+                            const run = inflight.get(msgId);
+                            try { run?.stream?.controller?.abort?.(); } catch (_) {}
+                            if (run?.ac) run.ac.abort();
+                            inflight.delete(msgId);
+                            if (removed.status === 'streaming' || removed.status === 'thinking' || removed.status === 'loading') {
+                                removed.status = 'canceled';
+                            }
+                        }
+                        const originalIndex = idx;
+                        group.messages.splice(idx, 1);
+                        saveData();
+                        renderMessages();
+
+                        let undone = false;
+                        const undo = () => {
+                            if (undone) return; undone = true;
+                            const insertAt = Math.min(originalIndex, (group.messages||[]).length);
+                            (group.messages||[]).splice(insertAt, 0, removed);
+                            saveData();
+                            renderMessages();
+                            showToast('已撤销删除', 'info', 3000);
+                        };
+                        showToast('已删除', 'success', 6000, { text: '撤销', onClick: undo });
+                    }
+                    return;
+                }
                 // 语音朗读：单个气泡
                 const readBtn = e.target.closest('[data-action="tts-read"]');
                 if (readBtn) {
@@ -3313,6 +3352,7 @@
                                 <div class="message-tools" role="group" aria-label="消息工具">
                                     <button class="icon-btn" data-action="copy-msg" title="复制" aria-label="复制">📋</button>
                                     <button class="icon-btn" data-action="export-msg" title="导出为 Markdown" aria-label="导出">⬇️</button>
+                                    <button class="icon-btn icon-btn-danger" data-action="delete-msg" title="删除" aria-label="删除">🗑️</button>
                                 </div>
                             </div>
                         </div>
