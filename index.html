@@ -1829,8 +1829,10 @@
 
         let openaiClients = {};
         const inflight = new Map(); // msgId -> { ac, stream? }
-        // 运行时状态（不持久化）：记录哪些群聊正在进行自动回复流程，避免重复触发
-        const runtime = { autoReplyRunning: new Set() };
+        // 运行时状态（不持久化）
+        // autoReplyRunning: 记录哪些群聊正在进行自动回复流程，避免重复触发
+        // aiSelector: 每个群聊一次选择流程的控制器
+        const runtime = { autoReplyRunning: new Set(), aiSelector: new Map() };
 
         const el = {
             userSettingsBtn: qs('#userSettingsBtn'),
@@ -2456,6 +2458,12 @@
 
             // 聊天区交互：取消、工具条、头像点击
             el.chatMessages.addEventListener('click', (e) => {
+                const cancelSelBtn = e.target.closest('[data-action="cancel-selector"]');
+                if (cancelSelBtn) {
+                    const group = groups.find(g => g.id === currentGroupId);
+                    if (group) abortAISelectorForGroup(group);
+                    return;
+                }
                 const cancelBtn = e.target.closest('[data-action="cancel-msg"]');
                 if (cancelBtn) {
                     const msgId = cancelBtn.getAttribute('data-msg-id');
@@ -3304,7 +3312,7 @@
                                 <div class="message-header">
                                     <span class="message-name"><span class="skel skel-name"></span></span>
                                     <span class="message-time">&nbsp;</span>
-                                    <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span></span>
+                                    <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span> <button class="ms-action" data-action="cancel-selector" title="中止" aria-label="中止">⏹</button></span>
                                 </div>
                                 <div class="message-bubbles"><div class="message-text"><div class="skel skel-line w-80"></div><div class="skel skel-line w-60"></div></div></div>
                             </div>
@@ -4222,30 +4230,46 @@
             const candidates = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
             if (candidates.length === 0) return;
             const MAX_STEPS = Math.max(1, group.maxRounds || 20);
-            for (let step = 0; step < MAX_STEPS; step++) {
-                const skelId = pushSelectorSkeleton(group);
-                let next = null;
-                try {
-                    next = await selectNextAgentByAI(group, candidates);
-                } catch (_) { next = null; }
-                removeMessageById(group, skelId);
-                if (!next) {
-                    addSystemMessage(group, 'AI 选择器失败或未选择', 'warning');
-                    break;
+            const ac = new AbortController();
+            runtime.aiSelector.set(group.id, { ac, aborted: false });
+            try {
+                for (let step = 0; step < MAX_STEPS; step++) {
+                    const entry = runtime.aiSelector.get(group.id);
+                    if (!entry || entry.aborted) break;
+                    const skelId = pushSelectorSkeleton(group);
+                    let next = null;
+                    try {
+                        next = await selectNextAgentByAI(group, candidates, ac.signal);
+                    } catch (err) {
+                        next = null;
+                        if (err && err.name === 'AbortError') {
+                            removeMessageById(group, skelId);
+                            break;
+                        }
+                    }
+                    removeMessageById(group, skelId);
+                    const again = runtime.aiSelector.get(group.id);
+                    if (!again || again.aborted) break;
+                    if (!next) {
+                        addSystemMessage(group, 'AI 选择器失败或未选择', 'warning');
+                        break;
+                    }
+                    if (next === 'STOP') {
+                        addSystemMessage(group, 'AI 决定结束对话', 'info');
+                        break;
+                    }
+                    addSystemMessage(group, `AI 选择由 ${next.name} 回复`, 'info');
+                    await getAgentResponse(group, next);
+                    if (step < MAX_STEPS - 1) {
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
                 }
-                if (next === 'STOP') {
-                    addSystemMessage(group, 'AI 决定结束对话', 'info');
-                    break;
-                }
-                addSystemMessage(group, `AI 选择由 ${next.name} 回复`, 'info');
-                await getAgentResponse(group, next);
-                if (step < MAX_STEPS - 1) {
-                    await new Promise(r => setTimeout(r, 1000));
-                }
+            } finally {
+                runtime.aiSelector.delete(group.id);
             }
         }
 
-        async function selectNextAgentByAI(group, candidates) {
+        async function selectNextAgentByAI(group, candidates, signal) {
             try {
                 if (!globalSettings.apiKey || !globalSettings.baseUrl) {
                     showToast('请先在用户设置中配置 API Key 和 Base URL', 'warning');
@@ -4271,7 +4295,7 @@
                     temperature: 0.2,
                     max_tokens: 60,
                     messages: [sys, ...history]
-                });
+                }, { signal });
                 const textRaw = resp.choices?.[0]?.message?.content || '';
                 const text = textRaw.trim();
                 let jsonStr = text;
@@ -4289,6 +4313,7 @@
                 const found = candidates.find(a => a.name === nextName);
                 return found || null;
             } catch (e) {
+                if (e && e.name === 'AbortError') { throw e; }
                 console.error('AI 选择器失败:', e);
                 addSystemMessage(group, 'AI 选择器失败：' + (e.message || '未知错误'), 'warning');
                 return null;
@@ -4508,6 +4533,21 @@
                 saveData();
                 renderMessages();
             }
+        }
+
+        function abortAISelectorForGroup(group) {
+            if (!group) return;
+            const entry = runtime.aiSelector.get(group.id);
+            if (entry && entry.ac) {
+                try { entry.ac.abort(); } catch (_) {}
+                entry.aborted = true;
+            }
+            if (Array.isArray(group.messages)) {
+                group.messages = group.messages.filter(m => m.role !== 'selector');
+            }
+            saveData();
+            renderMessages();
+            addSystemMessage(group, '用户中止了 AI 选择流程', 'info');
         }
 
         function clearChat() {
