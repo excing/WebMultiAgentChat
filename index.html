@@ -1591,6 +1591,21 @@
                     <textarea id="agentPrompt" required placeholder="描述这个角色的性格、专长和行为方式"></textarea>
                 </div>
                 <div class="form-group">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <button type="button" class="btn btn-secondary" id="agentImportJsonBtn" title="从 JSON 导入为 Markdown 并追加到系统提示词">导入 JSON 到提示词</button>
+                        <span class="more-wrap" id="agentExportWrap">
+                            <button type="button" class="btn btn-secondary" id="agentExportDropdownBtn" title="导出角色 JSON">导出为角色 JSON ▾</button>
+                            <div class="dropdown-menu" id="agentExportDropdownMenu">
+                                <div class="dropdown-item" data-export-mode="full">完全导出</div>
+                                <div class="dropdown-item" data-export-mode="safe">导出(不包括敏感信息)</div>
+                                <div class="dropdown-item" data-export-mode="prompt_only">仅导出角色提示词</div>
+                            </div>
+                        </span>
+                        <input type="file" id="agentImportFile" accept="application/json,.json" style="display:none">
+                    </div>
+                    <div class="role-muted" style="margin-top:6px; font-size:12px;">导入会将任意 JSON 的键值展平成 Markdown 列表并附加到系统提示词。</div>
+                </div>
+                <div class="form-group">
                     <label>头像颜色</label>
                     <input type="color" id="agentColor" value="#667eea">
                 </div>
@@ -1883,6 +1898,11 @@
             agentRole: qs('#agentRole'),
             agentPrompt: qs('#agentPrompt'),
             agentColor: qs('#agentColor'),
+            agentImportJsonBtn: qs('#agentImportJsonBtn'),
+            agentImportFile: qs('#agentImportFile'),
+            agentExportWrap: qs('#agentExportWrap'),
+            agentExportDropdownBtn: qs('#agentExportDropdownBtn'),
+            agentExportDropdownMenu: qs('#agentExportDropdownMenu'),
             agentUseGlobal: qs('#agentUseGlobal'),
             agentConfigSection: qs('#agentConfigSection'),
             agentBaseUrl: qs('#agentBaseUrl'),
@@ -2478,6 +2498,33 @@
                     const base = (baseUrl||'').replace(/\/$/,'');
                     const voices = ttsVoicesCache.get(base) || [];
                     fillStyleSelect(el.agentTTSStyle, voices, el.agentTTSVoice.value, el.agentTTSStyle?.value || '');
+                });
+            }
+
+            // 角色导入/导出（JSON ↔️ 提示词）
+            if (el.agentImportJsonBtn && el.agentImportFile) {
+                el.agentImportJsonBtn.addEventListener('click', () => el.agentImportFile.click());
+                el.agentImportFile.addEventListener('change', handleAgentImportFile);
+            }
+            // 导出 JSON 下拉
+            if (el.agentExportDropdownBtn && el.agentExportDropdownMenu) {
+                el.agentExportDropdownBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    qsa('.dropdown-menu').forEach(m => { if (m !== el.agentExportDropdownMenu) m.classList.remove('open'); });
+                    el.agentExportDropdownMenu.classList.toggle('open');
+                });
+                el.agentExportDropdownMenu.addEventListener('click', (e) => {
+                    const item = e.target.closest('.dropdown-item');
+                    if (!item) return;
+                    const mode = item.getAttribute('data-export-mode') || 'safe';
+                    exportCurrentAgentJson(mode);
+                    el.agentExportDropdownMenu.classList.remove('open');
+                });
+                document.addEventListener('click', (e) => {
+                    if (!el.agentExportWrap) return;
+                    if (!el.agentExportWrap.contains(e.target)) {
+                        el.agentExportDropdownMenu.classList.remove('open');
+                    }
                 });
             }
 
@@ -4816,6 +4863,127 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ===== JSON ⇄ Markdown (KV) for Agent Prompt Import/Export =====
+        function flattenToKVPairs(obj, prefix = '') {
+            const out = [];
+            try {
+                const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+                const isArr = Array.isArray;
+                const walk = (v, pfx) => {
+                    if (isObj(v)) {
+                        for (const k of Object.keys(v)) {
+                            const key = pfx ? `${pfx}.${k}` : k;
+                            walk(v[k], key);
+                        }
+                        return;
+                    }
+                    if (isArr(v)) {
+                        v.forEach((item, i) => walk(item, pfx ? `${pfx}[${i}]` : `[${i}]`));
+                        return;
+                    }
+                    const val = v === null ? 'null' : v === undefined ? 'undefined' : v;
+                    out.push({ key: String(pfx || ''), value: typeof val === 'string' ? val : String(val) });
+                };
+                walk(obj, prefix);
+            } catch (_) {}
+            return out;
+        }
+
+        function jsonToMarkdownKV(obj) {
+            try {
+                const kvs = flattenToKVPairs(obj);
+                if (!kvs || kvs.length === 0) return '- (空)';
+                return kvs.map(({ key, value }) => `- ${key}: ${value}`).join('\n');
+            } catch (e) {
+                return `- 解析失败: ${e?.message || 'Unknown error'}`;
+            }
+        }
+
+        async function handleAgentImportFile(e) {
+            const fi = el.agentImportFile;
+            if (!fi || !fi.files || fi.files.length === 0) return;
+            const file = fi.files[0];
+            try {
+                const text = await file.text();
+                let obj;
+                try { obj = JSON.parse(text); } catch (err) { throw new Error('无效的 JSON 文件'); }
+                const md = jsonToMarkdownKV(obj);
+                const curr = el.agentPrompt?.value || '';
+                el.agentPrompt.value = curr ? (curr.replace(/\s+$/,'') + '\n\n' + md + '\n') : md;
+                showToast('已导入到系统提示词', 'success');
+            } catch (err) {
+                showToast('导入失败：' + (err?.message || '未知错误'), 'error');
+            } finally {
+                // 允许重复选择同一文件
+                if (fi) fi.value = '';
+            }
+        }
+
+        function buildAgentDataFromForm() {
+            const useGlobal = el.agentUseGlobal?.checked !== false;
+            const data = {
+                id: currentEditingAgent !== null ? (agents[currentEditingAgent]?.id || generateId()) : generateId(),
+                name: el.agentName?.value || '',
+                role: el.agentRole?.value || '',
+                prompt: el.agentPrompt?.value || '',
+                color: el.agentColor?.value || '#667eea',
+                useGlobal: useGlobal,
+                model: (el.agentModel?.value || globalSettings.model || '')
+            };
+            // 非敏感配置（导出时剔除 apiKey）
+            if (!useGlobal) {
+                if (el.agentBaseUrl?.value) data.baseUrl = el.agentBaseUrl.value;
+                if (el.agentTemperature?.value !== '') data.temperature = parseFloat(el.agentTemperature.value);
+                if (el.agentMaxTokens?.value !== '') data.maxTokens = parseInt(el.agentMaxTokens.value, 10);
+            }
+            // TTS（剔除 apiKey）
+            data.ttsUseGlobal = el.agentTTSUseGlobal?.checked !== false;
+            if (data.ttsUseGlobal === false) {
+                data.tts = data.tts || {};
+                if (el.agentTTSBaseUrl?.value) data.tts.baseUrl = el.agentTTSBaseUrl.value;
+                if (el.agentTTSVoice?.value) data.tts.voice = el.agentTTSVoice.value;
+                if (el.agentTTSStyle?.value) data.tts.style = el.agentTTSStyle.value;
+                if (el.agentTTSRate?.value !== '') data.tts.rate = parseInt(el.agentTTSRate.value||'0',10)||0;
+                if (el.agentTTSPitch?.value !== '') data.tts.pitch = parseInt(el.agentTTSPitch.value||'0',10)||0;
+                if (el.agentTTSFormat?.value) data.tts.format = el.agentTTSFormat.value;
+            }
+            return data;
+        }
+
+        function exportCurrentAgentJson(mode = 'safe') {
+            try {
+                let data = buildAgentDataFromForm();
+                // 按模式处理
+                if (mode === 'prompt_only') {
+                    data = { prompt: data.prompt || '' };
+                } else if (mode === 'full') {
+                    // 尽量补充敏感字段
+                    const useGlobal = el.agentUseGlobal?.checked !== false;
+                    if (!useGlobal && el.agentApiKey?.value) data.apiKey = el.agentApiKey.value;
+                    if (data.ttsUseGlobal === false) {
+                        data.tts = data.tts || {};
+                        if (el.agentTTSApiKey?.value) data.tts.apiKey = el.agentTTSApiKey.value;
+                    }
+                } else {
+                    // safe: 去除 baseUrl 与 apiKey
+                    delete data.baseUrl; delete data.apiKey;
+                    if (data.tts) { delete data.tts.baseUrl; delete data.tts.apiKey; }
+                }
+
+                const nameBase = (el.agentName?.value || 'agent').replace(/[^\w\u4e00-\u9fa5-]+/g, '_');
+                const suffix = mode === 'full' ? 'full' : (mode === 'prompt_only' ? 'prompt' : 'safe');
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `${nameBase}.${suffix}.json`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`已导出角色 JSON（${suffix}）`, 'success');
+            } catch (err) {
+                showToast('导出失败：' + (err?.message || '未知错误'), 'error');
+            }
         }
 
         function generateRandomColor() {
