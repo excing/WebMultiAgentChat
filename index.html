@@ -2994,6 +2994,172 @@
             return temp.firstElementChild;
         }
 
+        // ===== 渲染辅助：仅用于增量更新路径 =====
+        function statusTagByStatus(status) {
+            const loadingHTML = `生成中<span class="dots"><i></i><i></i><i></i></span>`;
+            if (status === 'loading') return loadingHTML;
+            if (status === 'thinking') return `思考中<span class="dots"><i></i><i></i><i></i></span>`;
+            if (status === 'streaming') return `输入中<span class="dots"><i></i><i></i><i></i></span>`;
+            if (status === 'canceled') return '已中止';
+            return '';
+        }
+
+        function findMessageEl(msgId) {
+            return qs(`.message[data-msg-id="${msgId}"]`, el.chatMessages);
+        }
+
+        function buildMessageElement(msg) {
+            if (!msg) return createElement('');
+            if (msg.role === 'system') {
+                const lvl = msg.level || 'info';
+                return createElement(`<div class="system-message system-${lvl}">${escapeHtml(msg.content||'')}</div>`);
+            }
+            if (msg.role === 'selector') {
+                return createElement(`
+                    <div class="message" ${msg.id ? `data-msg-id="${msg.id}"` : ''}>
+                        <div class="message-avatar"><span class="skel skel-avatar"></span></div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-name"><span class="skel skel-name"></span></span>
+                                <span class="message-time">&nbsp;</span>
+                                <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span> <button class="ms-action" data-action="cancel-selector" title="中止" aria-label="中止">⏹</button></span>
+                            </div>
+                            <div class="message-bubbles"><div class="message-text"><div class="skel skel-line w-80"></div><div class="skel skel-line w-60"></div></div></div>
+                        </div>
+                    </div>
+                `);
+            }
+
+            const isUser = msg.role === 'user';
+            const agent = isUser ? null : agents.find(a => a.id === msg.agentId);
+            const color = isUser ? '#667eea' : (agent ? agent.color : '#999');
+            const name = isUser ? (globalSettings.userName||'用户') : (agent ? agent.name : '未知');
+            const timeHtml = `<span class="message-time">${formatTime(msg.timestamp)}</span>`;
+            const headerExtra = [];
+            if (!isUser && (msg.thinking && String(msg.thinking).trim())) {
+                headerExtra.push(`<button class=\"ms-think-toggle\" data-msg-id=\"${msg.id}\" aria-expanded=\"false\" title=\"显示/隐藏思考过程\">🧠<i class="think-blink" aria-hidden="true"></i></button>`);
+            }
+            const statusTxt = !isUser ? statusTagByStatus(msg.status) : '';
+            if (!isUser && statusTxt) {
+                const stopBtn = (msg.status==='loading' || msg.status==='thinking' || msg.status==='streaming') ? ` <button class=\"ms-action\" data-action=\"cancel-msg\" data-msg-id=\"${msg.id}\" title=\"停止\" aria-label=\"停止\">⏹</button>` : '';
+                headerExtra.push(`<span class=\"message-status\">${statusTxt}${stopBtn}</span>`);
+            }
+            const headerTools = `
+                <div class="message-tools" role="group" aria-label="消息工具">
+                    <button class="icon-btn" data-action="copy-msg" title="复制" aria-label="复制">📋</button>
+                    <button class="icon-btn" data-action="export-msg" title="导出为 Markdown" aria-label="导出">⬇️</button>
+                    <button class="icon-btn icon-btn-danger" data-action="delete-msg" title="删除" aria-label="删除">🗑️</button>
+                </div>`;
+
+            let contentEl;
+            if (isUser) {
+                if (!msg.id) msg.id = generateId();
+                contentEl = createMarkdownElement(`${msg.id}`, msg.content||'');
+            } else {
+                const st = msg.status || 'done';
+                const text = (msg.content || '').trim();
+                if (st === 'loading' || st === 'thinking') {
+                    contentEl = createElement(`<div class="message-bubbles"><div class="message-text"><span class="typing-indicator"><span></span><span></span><span></span></span></div></div>`);
+                } else if (st === 'empty') {
+                    contentEl = createElement(`<div class="message-bubbles"><div class="message-text">Response No Message...</div></div>`);
+                } else {
+                    contentEl = renderGroupedBubbles(msg.id, text);
+                }
+            }
+
+            const dataAgentAttr = (!isUser && agent) ? `data-agent-id="${agent.id}"` : '';
+            const root = createElement(`
+                <div class="message ${isUser ? 'user' : ''}" ${msg.id ? `data-msg-id="${msg.id}"` : ''}>
+                    <div class="message-avatar" ${dataAgentAttr} style="background: ${color}">
+                        ${name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-name">${name}</span>
+                            ${timeHtml}
+                            ${headerExtra.join('')}
+                            ${headerTools}
+                        </div>
+                    </div>
+                </div>
+            `);
+            // 思考内容容器（按需）
+            if (!isUser && (msg.thinking && String(msg.thinking).trim())) {
+                const thinkEl = createElement(`<div class="message-thinking hidden"></div>`);
+                thinkEl.textContent = msg.thinking || '';
+                qs('.message-content', root).appendChild(thinkEl);
+            }
+            qs('.message-content', root).appendChild(contentEl);
+            return root;
+        }
+
+        function reconcileWindowAfterAppend(group) {
+            if (!el.chatMessages) return;
+            const desired = getVisibleMessages(group).length;
+            const nodes = Array.from(el.chatMessages.children).filter(n => n.classList && (n.classList.contains('message') || n.classList.contains('system-message')));
+            while (nodes.length > desired) {
+                const node = nodes.shift();
+                try { node.remove(); } catch (_) {}
+            }
+        }
+
+        function appendMessageEl(msg) {
+            // 移除空状态
+            const empty = qs('.empty-state', el.chatMessages); if (empty) { try { empty.remove(); } catch (_) {} }
+            const node = buildMessageElement(msg);
+            el.chatMessages.appendChild(node);
+            const group = groups.find(g => g.id === currentGroupId);
+            if (group) reconcileWindowAfterAppend(group);
+            if (shouldAutoScroll) scrollToBottom(false);
+            if (el.scrollToBottomBtn) {
+                el.scrollToBottomBtn.classList.toggle('show', !isAtBottom(el.chatMessages));
+            }
+        }
+
+        function ensureThinkToggle(msgId) {
+            const root = findMessageEl(msgId); if (!root) return;
+            const header = qs('.message-header', root); if (!header) return;
+            if (!header.querySelector('.ms-think-toggle')) {
+                const btn = createElement(`<button class="ms-think-toggle" data-msg-id="${msgId}" aria-expanded="false" title="显示/隐藏思考过程">🧠<i class="think-blink" aria-hidden="true"></i></button>`);
+                header.insertBefore(btn, header.querySelector('.message-status') || header.querySelector('.message-tools'));
+            }
+        }
+
+        function upsertThinking(msgId, thinkingText) {
+            const root = findMessageEl(msgId); if (!root) return;
+            ensureThinkToggle(msgId);
+            const contentRoot = qs('.message-content', root);
+            let thinkEl = qs('.message-thinking', root);
+            if (!thinkEl) {
+                thinkEl = createElement('<div class="message-thinking hidden"></div>');
+                const beforeNode = qs('.message-bubbles', root);
+                contentRoot.insertBefore(thinkEl, beforeNode || null);
+            }
+            thinkEl.textContent = (thinkEl.textContent || '') + (thinkingText || '');
+        }
+
+        function upsertBubbles(msgId, fullText) {
+            const root = findMessageEl(msgId); if (!root) return;
+            const oldBox = qs('.message-bubbles', root);
+            const newBox = renderGroupedBubbles(msgId, fullText || '');
+            if (!oldBox) {
+                qs('.message-content', root).appendChild(newBox);
+            } else if (oldBox !== newBox) {
+                oldBox.replaceWith(newBox);
+            }
+        }
+
+        function updateStatusChip(msgId, status) {
+            const root = findMessageEl(msgId); if (!root) return;
+            const header = qs('.message-header', root); if (!header) return;
+            let chip = qs('.message-status', header);
+            const txt = statusTagByStatus(status);
+            if (!txt) { if (chip) chip.remove(); return; }
+            const html = txt + ((status==='loading'||status==='thinking'||status==='streaming') ? ` <button class="ms-action" data-action="cancel-msg" data-msg-id="${msgId}" title="停止" aria-label="停止">⏹</button>` : '');
+            if (!chip) { chip = createElement('<span class="message-status"></span>'); header.appendChild(chip); }
+            chip.innerHTML = html;
+        }
+
         // Markdown 预览合并渲染器：节流 + 尾触发 + maxWait（按元素维度）
         const previewStates = new WeakMap(); // el -> { timer, lastRender, pending }
         // minDelay 最短合并等待时间, 用于节流, maxDelay 最长不更新等待时间, 用于尾触发
@@ -4004,7 +4170,7 @@
                 group.messages.push(userMessage);
                 el.userInput.value = '';
                 saveData();
-                renderMessages();
+                appendMessageEl(userMessage);
             }
 
             // 新需求：当处于“自动回复”流程中时，允许用户正常发言，但不再次触发任何自动回复流程
@@ -4470,7 +4636,7 @@
                 group.messages.push(assistantMessage);
                 const msgIndex = group.messages.length - 1;
                 saveData();
-                renderMessages();
+                appendMessageEl(assistantMessage);
 
                 const client = await getOpenAIClient(config);
                 const ac = new AbortController();
@@ -4535,15 +4701,23 @@
                     }
 
                     inflight.set(msgId, { ...info, inThink: parts.inThinkAfter });
-                    if (thinkingDelta || visibleDelta) {
-                        renderMessages();
+                    if (thinkingDelta) {
+                        upsertThinking(msgId, thinkingDelta);
                     }
+                    if (visibleDelta) {
+                        upsertBubbles(msgId, group.messages[msgIndex].content);
+                    }
+                    updateStatusChip(msgId, group.messages[msgIndex].status);
+                    if (visibleDelta && shouldAutoScroll) scrollToBottom(false);
                 }
                 inflight.delete(msgId);
                 const finalText = (group.messages[msgIndex]?.content || '').trim();
                 group.messages[msgIndex].status = finalText ? 'done' : 'empty';
                 saveData();
-                renderMessages();
+                updateStatusChip(msgId, group.messages[msgIndex].status);
+                if (finalText) {
+                    upsertBubbles(msgId, group.messages[msgIndex].content);
+                }
                 if (!finalText) {
                     addSystemMessage(group, `角色 ${agent.name} 空回复`, 'info');
                 }
@@ -4558,7 +4732,7 @@
                     last.status = (error?.name === 'AbortError') ? 'canceled' : 'error';
                 }
                 saveData();
-                renderMessages();
+                if (last) updateStatusChip(last.id, last.status);
                 if (error?.name !== 'AbortError') {
                     addSystemMessage(group, `角色 ${agent.name} 响应失败: ${error.message}`, 'error');
                 }
