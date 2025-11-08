@@ -1832,7 +1832,8 @@
         // 运行时状态（不持久化）
         // autoReplyRunning: 记录哪些群聊正在进行自动回复流程，避免重复触发
         // aiSelector: 每个群聊一次选择流程的控制器
-        const runtime = { autoReplyRunning: new Set(), aiSelector: new Map() };
+        // paging: 每个群聊的消息分页窗口状态（上一页上一页加载）
+        const runtime = { autoReplyRunning: new Set(), aiSelector: new Map(), paging: new Map() };
 
         const el = {
             userSettingsBtn: qs('#userSettingsBtn'),
@@ -1930,6 +1931,7 @@
         };
 
         // 聊天自动滚动：仅在用户位于底部时保持置底
+        const PAGE_SIZE = 10; // 每次向上分页加载的条数
         let shouldAutoScroll = true;
         const isAtBottom = (node, threshold = 24) => (node.scrollHeight - node.scrollTop - node.clientHeight) <= threshold;
 
@@ -1940,6 +1942,55 @@
             } catch (_) {
                 el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
             }
+        }
+
+        // ===== 消息分页（上一页上一页加载） =====
+        function getPagingState(group) {
+            if (!group) return { loaded: 0, pageSize: PAGE_SIZE, loading: false, done: true };
+            const total = (group.messages || []).length;
+            let st = runtime.paging.get(group.id);
+            if (!st) {
+                const loaded = Math.min(PAGE_SIZE, total);
+                st = { loaded, pageSize: PAGE_SIZE, loading: false, done: loaded >= total };
+                runtime.paging.set(group.id, st);
+            } else {
+                st.loaded = Math.min(st.loaded, total);
+                st.done = st.loaded >= total;
+            }
+            return st;
+        }
+
+        function resetPagingForGroup(group) {
+            if (!group) return;
+            const total = (group.messages || []).length;
+            const loaded = Math.min(PAGE_SIZE, total);
+            runtime.paging.set(group.id, { loaded, pageSize: PAGE_SIZE, loading: false, done: loaded >= total });
+        }
+
+        function getVisibleMessages(group) {
+            const st = getPagingState(group);
+            const list = group.messages || [];
+            return list.slice(-st.loaded);
+        }
+
+        function loadOlderMessages() {
+            if (!currentGroupId || !el.chatMessages) return;
+            const group = groups.find(g => g.id === currentGroupId);
+            if (!group) return;
+            const st = getPagingState(group);
+            if (st.loading || st.done) return;
+            st.loading = true;
+            const node = el.chatMessages;
+            const prevTop = node.scrollTop;
+            const prevHeight = node.scrollHeight;
+            const total = (group.messages || []).length;
+            st.loaded = Math.min(st.loaded + st.pageSize, total);
+            st.done = st.loaded >= total;
+            // 渲染并保持视口位置不跳动
+            renderMessages();
+            const newHeight = node.scrollHeight;
+            node.scrollTop = prevTop + (newHeight - prevHeight);
+            st.loading = false;
         }
 
         function showToast(message, type = 'info', duration = 3000, action) {
@@ -2627,11 +2678,15 @@
                 }
             });
 
-            // 仅当用户位于底部时自动置底，并在未置底时显示悬浮按钮
+            // 仅当用户位于底部时自动置底；接近顶部时向上分页加载
             el.chatMessages.addEventListener('scroll', () => {
                 shouldAutoScroll = isAtBottom(el.chatMessages);
                 if (el.scrollToBottomBtn) {
                     el.scrollToBottomBtn.classList.toggle('show', !shouldAutoScroll);
+                }
+                // 接近顶部（阈值 48px）时，加载更早的 10 条
+                if (el.chatMessages.scrollTop <= 48) {
+                    loadOlderMessages();
                 }
             });
 
@@ -2909,7 +2964,7 @@
 
         // key -> markdown element 缓存
         const messageElementCache = new Map();
-        const MAX_CACHE = 400; // 简易 LRU 上限
+        const MAX_CACHE = 2000; // 简易 LRU 上限
         function cacheSet(key, el) {
             messageElementCache.set(key, el);
             if (messageElementCache.size > MAX_CACHE) {
@@ -2971,7 +3026,7 @@
             st.timer = window.setTimeout(async () => {
                 st.timer = null;
                 const textToRender = autoCloseCodeBlock(currentPending.trim());
-                Vditor.preview(el, autoCloseCodeBlock(textToRender), opts);
+                Vditor.preview(el, textToRender, opts);
                 st.lastRender = performance.now();
                 st.pending = currentPending;
             }, delay);
@@ -2992,11 +3047,11 @@
                         enable: true,
                         style: globalSettings.themeMode === "dark" ? "base16/dracula" : "github"
                     },
-                    after: () => {
-                        if (shouldAutoScroll) {
-                            el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
-                        }
-                    }
+                    // after: () => {
+                    //     if (shouldAutoScroll) {
+                    //         el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+                    //     }
+                    // }
                 };
                 schedulePreview(qs('.vditor-reset', mdel), text, opts, 60, 180);
                 cacheSet(key, mdel);
@@ -3293,7 +3348,8 @@
             // 1. 创建一个空白的文档片段 (在内存中)
             const fragment = document.createDocumentFragment();
 
-            const messageElements = group.messages.map(msg => {
+            const source = getVisibleMessages(group);
+            const messageElements = source.map(msg => {
                 if (msg.role === 'system') {
                     const lvl = msg.level || 'info';
                     const sel = globalSettings.systemMsgLevel || 'all';
@@ -3461,6 +3517,9 @@
             
             if (!group) return;
             if (!group.agentSettings) group.agentSettings = {};
+
+            // 重置该群的分页窗口（初始显示最近 10 条）
+            resetPagingForGroup(group);
 
             // 记住上次进入的群聊
             localStorage.setItem('lastGroupId_v1', groupId);
