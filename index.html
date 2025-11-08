@@ -4985,6 +4985,7 @@
             const base = indices.map(i => nonSystem[i]).filter(Boolean);
             const canSee = resolveGroupPerspective(agent.id, group);
             const filtered = base.filter(m => {
+                if (!m.content || !m.content.trim()) return false;
                 if (m.role === 'user') return true;
                 if (m.role === 'assistant') {
                     if (!canSee.has(m.agentId)) return false;
