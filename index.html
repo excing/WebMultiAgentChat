@@ -1807,6 +1807,88 @@
         const qs = (s, r=document) => r.querySelector(s);
         const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
 
+        // ===== Utils: micro-batched DOM updates, debounce/throttle, event delegation, modal helpers =====
+        const rafBatch = (() => {
+            let pending = false;
+            const queue = [];
+            return (fn) => {
+                queue.push(fn);
+                if (!pending) {
+                    pending = true;
+                    requestAnimationFrame(() => {
+                        pending = false;
+                        const tasks = queue.splice(0);
+                        for (const f of tasks) {
+                            try { f(); } catch (_) {}
+                        }
+                    });
+                }
+            };
+        })();
+
+        function debounce(fn, wait = 150) {
+            let t = null, lastArgs, lastThis;
+            const later = () => { t = null; fn.apply(lastThis, lastArgs); };
+            return function(...args) {
+                lastArgs = args; lastThis = this;
+                if (t) clearTimeout(t);
+                t = setTimeout(later, wait);
+            };
+        }
+
+        function throttle(fn, wait = 100) {
+            let last = 0, timer = null, pendingArgs = null, pendingThis = null;
+            const invoke = () => { last = Date.now(); timer = null; fn.apply(pendingThis, pendingArgs); pendingArgs = pendingThis = null; };
+            return function(...args) {
+                const now = Date.now();
+                if (now - last >= wait) { last = now; return void fn.apply(this, args); }
+                pendingArgs = args; pendingThis = this;
+                if (!timer) timer = setTimeout(invoke, Math.max(0, wait - (now - last)));
+            };
+        }
+
+        function on(root, type, selector, handler) {
+            root.addEventListener(type, (e) => {
+                const t = e.target && e.target.closest(selector);
+                if (t && root.contains(t)) handler.call(t, e, t);
+            });
+        }
+
+        function openModal(modalEl) { if (!modalEl) return; modalEl.classList.add('active'); resetModalScroll(modalEl); }
+        function closeModal(modalEl) { if (!modalEl) return; modalEl.classList.remove('active'); }
+
+        // Unified form submit binder: prevent double submits and handle async
+        function bindFormSubmit(formEl, onSubmit) {
+            if (!formEl || typeof onSubmit !== 'function') return;
+            formEl.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const submits = Array.from(formEl.querySelectorAll('button[type="submit"],input[type="submit"]'));
+                const prev = submits.map(b => b.disabled);
+                submits.forEach(b => { b.disabled = true; });
+                try { await onSubmit(e); }
+                finally { submits.forEach((b, i) => { b.disabled = prev[i]; }); }
+            });
+        }
+
+        // Batched rendering scheduler
+        const renderScheduler = (() => {
+            const pending = { agents: false, groups: false, messages: false };
+            function request(part) {
+                if (part.agents) pending.agents = true;
+                if (part.groups) pending.groups = true;
+                if (part.messages) pending.messages = true;
+                rafBatch(flush);
+            }
+            function flush() {
+                const todo = { ...pending };
+                pending.agents = pending.groups = pending.messages = false;
+                if (todo.groups) try { renderGroups(); } catch (_) {}
+                if (todo.agents) try { renderAgents(); } catch (_) {}
+                if (todo.messages) try { renderMessages(); } catch (_) {}
+            }
+            return { request };
+        })();
+
         let OpenAI;
         
         async function loadOpenAI() {
@@ -1952,6 +2034,8 @@
 
         // 聊天自动滚动：仅在用户位于底部时保持置底
         const PAGE_SIZE = 10; // 每次向上分页加载的条数
+        const VIRTUAL_MAX = 200; // 虚拟列表上限，最多在 DOM 中保留的消息条数
+        const virtualState = { avgMessageHeight: 84 }; // 估算单条消息平均高度（用于 spacer）
         let shouldAutoScroll = true;
         const isAtBottom = (node, threshold = 24) => (node.scrollHeight - node.scrollTop - node.clientHeight) <= threshold;
 
@@ -2064,8 +2148,7 @@
             loadData();
             ensureAllAgentsGroup();
             initTheme();
-            renderAgents();
-            renderGroups();
+            renderScheduler.request({ agents: true, groups: true });
             autoEnterLastGroup();
             autoSelectFirstGroupIfNone();
             updateUserDisplay();
@@ -2328,17 +2411,14 @@
 
             el.userSettingsBtn.addEventListener('click', openUserSettingsModal);
             el.cancelUserSettingsBtn.addEventListener('click', closeUserSettingsModal);
-            el.userSettingsForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                saveUserSettings();
-            });
+            bindFormSubmit(el.userSettingsForm, async () => { await saveUserSettings(); });
 
             // 配置变更：即时生效（无需点保存）
             if (el.systemMsgLevel) {
                 el.systemMsgLevel.addEventListener('change', () => {
                     globalSettings.systemMsgLevel = el.systemMsgLevel.value || 'all';
                     saveData();
-                    if (currentGroupId) renderMessages();
+                    if (currentGroupId) renderScheduler.request({ messages: true });
                 });
             }
             if (el.themeMode) {
@@ -2353,7 +2433,7 @@
                     globalSettings.model = el.globalModel.value || '';
                     saveData();
                     // 右栏用户条目展示全局模型
-                    renderAgents();
+                    renderScheduler.request({ agents: true });
                 });
             }
             if (el.globalBaseUrl) {
@@ -2456,20 +2536,14 @@
 
             el.createGroupBtn.addEventListener('click', openGroupModal);
             el.cancelGroupModalBtn.addEventListener('click', closeGroupModal);
-            el.groupForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                saveGroup();
-            });
+            bindFormSubmit(el.groupForm, async () => { await saveGroup(); });
             el.groupAutoReply.addEventListener('change', updateGroupAutoReplyUI);
             if (el.groupAutoReplyMode) el.groupAutoReplyMode.addEventListener('change', updateGroupAutoReplyUI);
             if (el.groupSelectorRefreshModelsBtn) el.groupSelectorRefreshModelsBtn.addEventListener('click', loadSelectorModels);
 
             el.createAgentBtn.addEventListener('click', openAgentModal);
             el.cancelAgentModalBtn.addEventListener('click', closeAgentModal);
-            el.agentForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                saveAgent();
-            });
+            bindFormSubmit(el.agentForm, async () => { await saveAgent(); });
 
             el.agentUseGlobal.addEventListener('change', toggleAgentConfig);
             el.refreshModelsBtn.addEventListener('click', loadModels);
@@ -2565,9 +2639,7 @@
                 const cancelBtn = e.target.closest('[data-action="cancel-msg"]');
                 if (cancelBtn) {
                     const msgId = cancelBtn.getAttribute('data-msg-id');
-                    const run = inflight.get(msgId);
-                    try { run?.stream?.controller?.abort?.(); } catch (_) {}
-                    if (run?.ac) run.ac.abort();
+                    abortAndClearInflight(msgId);
                     // 标记该角色消息为 canceled，并记录系统提示
                     const group = groups.find(g => g.id === currentGroupId);
                     if (group && Array.isArray(group.messages)) {
@@ -2575,7 +2647,7 @@
                         if (m && m.role === 'assistant' && m.status === 'streaming') {
                             m.status = 'canceled';
                             saveData();
-                            renderMessages();
+                            renderScheduler.request({ messages: true });
                             const agent = agents.find(a => a.id === m.agentId);
                             addSystemMessage(group, `用户中止了 ${agent ? agent.name : '该角色'} 的响应`, 'info');
                         }
@@ -2638,10 +2710,7 @@
                         const removed = group.messages[idx];
                         if (!removed || (removed.role !== 'assistant' && removed.role !== 'user')) { showToast('仅可删除用户或角色消息', 'warning'); return; }
                         if (removed.role === 'assistant') {
-                            const run = inflight.get(msgId);
-                            try { run?.stream?.controller?.abort?.(); } catch (_) {}
-                            if (run?.ac) run.ac.abort();
-                            inflight.delete(msgId);
+                            abortAndClearInflight(msgId);
                             if (removed.status === 'streaming' || removed.status === 'thinking' || removed.status === 'loading') {
                                 removed.status = 'canceled';
                             }
@@ -2649,7 +2718,7 @@
                         const originalIndex = idx;
                         group.messages.splice(idx, 1);
                         saveData();
-                        renderMessages();
+                        renderScheduler.request({ messages: true });
 
                         let undone = false;
                         const undo = () => {
@@ -2657,7 +2726,7 @@
                             const insertAt = Math.min(originalIndex, (group.messages||[]).length);
                             (group.messages||[]).splice(insertAt, 0, removed);
                             saveData();
-                            renderMessages();
+                            renderScheduler.request({ messages: true });
                             showToast('已撤销删除', 'info', 3000);
                         };
                         showToast('已删除', 'success', 6000, { text: '撤销', onClick: undo });
@@ -2891,12 +2960,11 @@
             if (el.themeMode) {
                 el.themeMode.value = globalSettings.themeMode || 'system';
             }
-            el.userSettingsModal.classList.add('active');
-            resetModalScroll(el.userSettingsModal);
+            openModal(el.userSettingsModal);
         }
 
         function closeUserSettingsModal() {
-            el.userSettingsModal.classList.remove('active');
+            closeModal(el.userSettingsModal);
         }
 
         async function saveUserSettings() {
@@ -2926,7 +2994,7 @@
             closeUserSettingsModal();
             showToast('设置已保存', 'success');
             if (currentGroupId) {
-                renderMessages();
+                renderScheduler.request({ messages: true, agents: true });
             }
 
             // 应用主题（包括跟随系统）
@@ -3277,8 +3345,31 @@
 
         // TTS caches
         const ttsAudioCache = new Map(); // key -> ObjectURL
+        const MAX_TTS_CACHE = 200;
         const ttsVoicesCache = new Map(); // baseUrl -> voices array
         let currentAudio = null;
+
+        function ttsCacheSet(key, objUrl) {
+            ttsAudioCache.set(key, objUrl);
+            if (ttsAudioCache.size > MAX_TTS_CACHE) {
+                const oldest = ttsAudioCache.keys().next().value;
+                const url = ttsAudioCache.get(oldest);
+                try { if (url) URL.revokeObjectURL(url); } catch (_) {}
+                ttsAudioCache.delete(oldest);
+            }
+        }
+
+        function ttsCacheClearAll() {
+            try { for (const url of ttsAudioCache.values()) URL.revokeObjectURL(url); } catch (_) {}
+            ttsAudioCache.clear();
+        }
+
+        function abortAndClearInflight(msgId) {
+            const run = inflight.get(msgId);
+            try { run?.stream?.controller?.abort?.(); } catch (_) {}
+            try { run?.ac?.abort?.(); } catch (_) {}
+            inflight.delete(msgId);
+        }
 
         // ===== 工具：提取消息 Markdown、下载文件、移动端判断 =====
         function getMessageMarkdownFromEl(msgRoot) {
@@ -3387,7 +3478,7 @@
                     if (!resp.ok) throw new Error('TTS 请求失败');
                     const blob = await resp.blob();
                     src = URL.createObjectURL(blob);
-                    ttsAudioCache.set(key, src);
+                    ttsCacheSet(key, src);
                 }
                 const audio = new Audio(src);
                 currentAudio = audio;
@@ -3562,7 +3653,14 @@
             const fragment = document.createDocumentFragment();
 
             const source = getVisibleMessages(group);
-            const messageElements = source.map(msg => {
+            let hiddenTop = 0;
+            let listForRender = source;
+            if (source.length > VIRTUAL_MAX) {
+                hiddenTop = source.length - VIRTUAL_MAX;
+                listForRender = source.slice(-VIRTUAL_MAX);
+            }
+
+            const messageElements = listForRender.map(msg => {
                 if (msg.role === 'system') {
                     const lvl = msg.level || 'info';
                     const sel = globalSettings.systemMsgLevel || 'all';
@@ -3645,8 +3743,15 @@
                 return messageElement;
             });
 
-            fragment.append(...messageElements);
+            // 清空并添加可选的顶部 spacer
             el.chatMessages.innerHTML = '';
+            if (hiddenTop > 0) {
+                const spacer = document.createElement('div');
+                spacer.className = 'v-spacer-top';
+                spacer.style.height = Math.max(0, Math.round(hiddenTop * virtualState.avgMessageHeight)) + 'px';
+                el.chatMessages.appendChild(spacer);
+            }
+            fragment.append(...messageElements);
             el.chatMessages.appendChild(fragment);
             
             if (shouldAutoScroll) {
@@ -3655,6 +3760,19 @@
             if (el.scrollToBottomBtn) {
                 el.scrollToBottomBtn.classList.toggle('show', !isAtBottom(el.chatMessages));
             }
+
+            // 更新平均高度（EMA），以便 spacer 更准确
+            try {
+                const nodes = Array.from(el.chatMessages.querySelectorAll('.message'));
+                if (nodes.length > 0) {
+                    const total = nodes.reduce((s, n) => s + (n.getBoundingClientRect().height || 0), 0);
+                    const avg = total / nodes.length;
+                    if (avg > 24) {
+                        // EMA，平滑更新
+                        virtualState.avgMessageHeight = virtualState.avgMessageHeight * 0.8 + avg * 0.2;
+                    }
+                }
+            } catch (_) {}
         }
 
         // 将一段文本按“空行分段”，代码块 (``` ... ```) 内不拆分
@@ -3751,9 +3869,7 @@
             
             shouldAutoScroll = true;
 
-            renderGroups();
-            renderMessages();
-            renderAgents();
+            renderScheduler.request({ groups: true, messages: true, agents: true });
         }
 
         function openAgentModal() {
@@ -3789,12 +3905,11 @@
                 qsa('input[name="permSeeMode"]').forEach(r=>{ r.onchange = ()=>{ el.permICanSeeList.style.display = (r.value==='custom'&&r.checked)?'':'none'; if (el.permICanSeeList.innerHTML.trim()==='') buildList(el.permICanSeeList); }; });
                 qsa('input[name="permSeenMode"]').forEach(r=>{ r.onchange = ()=>{ el.permCanSeeMeList.style.display = (r.value==='custom'&&r.checked)?'':'none'; if (el.permCanSeeMeList.innerHTML.trim()==='') buildList(el.permCanSeeMeList); }; });
             }
-            el.agentModal.classList.add('active');
-            resetModalScroll(el.agentModal);
+            openModal(el.agentModal);
         }
 
         function closeAgentModal() {
-            el.agentModal.classList.remove('active');
+            closeModal(el.agentModal);
         }
 
         function toggleAgentConfig(agentConfig) {
@@ -3877,8 +3992,7 @@
                 el.permVisionExprWrap.style.display = (v.type==='custom') ? '' : 'none';
                 if (el.permVisionError) { el.permVisionError.style.display = 'none'; el.permVisionError.textContent = ''; }
             }
-            el.agentModal.classList.add('active');
-            resetModalScroll(el.agentModal);
+            openModal(el.agentModal);
         }
 
         function saveAgent() {
@@ -3937,8 +4051,7 @@
 
             ensureAllAgentsGroup();
             saveData();
-            renderAgents();
-            renderGroups();
+            renderScheduler.request({ agents: true, groups: true });
             // 保存权限到当前群
             if (currentGroupId) {
                 const group = groups.find(g => g.id === currentGroupId);
@@ -3960,7 +4073,7 @@
                     saveData();
                 }
             }
-            if (currentGroupId) renderMessages();
+            if (currentGroupId) renderScheduler.request({ messages: true });
             showToast(isEdit ? '保存成功' : '创建成功', 'success');
             closeAgentModal();
         }
@@ -3980,9 +4093,7 @@
             });
 
             saveData();
-            renderAgents();
-            renderGroups();
-            if (currentGroupId) renderMessages();
+            renderScheduler.request({ agents: true, groups: true, messages: !!currentGroupId });
 
             let undone = false;
             const undo = () => {
@@ -3996,9 +4107,7 @@
                     }
                 });
                 saveData();
-                renderAgents();
-                renderGroups();
-                if (currentGroupId) renderMessages();
+                renderScheduler.request({ agents: true, groups: true, messages: !!currentGroupId });
                 showToast('已撤销删除', 'info', 3000);
             };
 
@@ -4015,18 +4124,14 @@
             const prev = group.agentIds.slice();
             group.agentIds = group.agentIds.filter(id => id !== agentId);
             saveData();
-            renderAgents();
-            renderGroups();
-            if (currentGroupId) renderMessages();
+            renderScheduler.request({ agents: true, groups: true, messages: !!currentGroupId });
 
             let undone = false;
             const undo = () => {
                 if (undone) return; undone = true;
                 group.agentIds = prev;
                 saveData();
-                renderAgents();
-                renderGroups();
-                if (currentGroupId) renderMessages();
+                renderScheduler.request({ agents: true, groups: true, messages: !!currentGroupId });
                 showToast('已撤销移除', 'info', 3000);
             };
             showToast('已从当前群聊移除', 'success', 6000, { text: '撤销', onClick: undo });
@@ -4050,12 +4155,11 @@
             }
             renderAgentCheckboxes();
             updateGroupAutoReplyUI();
-            el.groupModal.classList.add('active');
-            resetModalScroll(el.groupModal);
+            openModal(el.groupModal);
         }
 
         function closeGroupModal() {
-            el.groupModal.classList.remove('active');
+            closeModal(el.groupModal);
         }
 
         function editCurrentGroup() {
@@ -4086,8 +4190,7 @@
             }
             renderAgentCheckboxes(group.agentIds);
             updateGroupAutoReplyUI();
-            el.groupModal.classList.add('active');
-            resetModalScroll(el.groupModal);
+            openModal(el.groupModal);
         }
 
         function renderAgentCheckboxes(selectedIds = []) {
@@ -4132,7 +4235,7 @@
             }
 
             saveData();
-            renderGroups();
+            renderScheduler.request({ groups: true });
             autoSelectFirstGroupIfNone();
             // 新建群聊后，默认切换到该群聊
             if (!isEdit) {
@@ -4170,7 +4273,7 @@
             }
 
             saveData();
-            renderGroups();
+            renderScheduler.request({ groups: true });
             autoSelectFirstGroupIfNone();
 
             let undone = false;
@@ -4179,7 +4282,7 @@
                 const insertAt = Math.min(originalIndex, groups.length);
                 groups.splice(insertAt, 0, removed);
                 saveData();
-                renderGroups();
+                renderScheduler.request({ groups: true });
                 autoSelectFirstGroupIfNone();
                 if (wasCurrent) {
                     currentGroupId = groupId;
@@ -4791,8 +4894,8 @@
             if (!group) return;
             if (!group.messages) group.messages = [];
             group.messages.push({ role: 'system', content, level, timestamp: Date.now() });
-            saveData();
-            renderMessages();
+                        saveData();
+                        renderScheduler.request({ messages: true });
         }
 
         function pushSelectorSkeleton(group) {
@@ -4800,8 +4903,8 @@
             const msg = { id: generateId(), role: 'selector', status: 'selecting', timestamp: Date.now() };
             if (!group.messages) group.messages = [];
             group.messages.push(msg);
-            saveData();
-            renderMessages();
+                            saveData();
+                            renderScheduler.request({ messages: true });
             return msg.id;
         }
 
@@ -4809,9 +4912,10 @@
             if (!group || !id) return;
             const idx = (group.messages || []).findIndex(m => m && m.id === id);
             if (idx !== -1) {
+                abortAndClearInflight(id);
                 group.messages.splice(idx, 1);
                 saveData();
-                renderMessages();
+                renderScheduler.request({ messages: true });
             }
         }
 
@@ -4826,7 +4930,7 @@
                 group.messages = group.messages.filter(m => m.role !== 'selector');
             }
             saveData();
-            renderMessages();
+            renderScheduler.request({ messages: true });
             addSystemMessage(group, '用户中止了 AI 选择流程', 'info');
         }
 
@@ -4836,18 +4940,23 @@
             if (!group) return;
 
             const previous = Array.isArray(group.messages) ? group.messages.slice() : [];
+            // abort all inflight of this group
+            for (const m of previous) { if (m?.id) abortAndClearInflight(m.id); }
             group.messages = [];
             saveData();
             // 同步清理渲染缓存
             messageElementCache.clear();
-            renderMessages();
+            // Stop and cleanup TTS resources
+            try { if (currentAudio) { currentAudio.pause(); currentAudio = null; } } catch (_) {}
+            ttsCacheClearAll();
+            renderScheduler.request({ messages: true });
 
             let undone = false;
             const undo = () => {
                 if (undone) return; undone = true;
                 group.messages = previous;
                 saveData();
-                renderMessages();
+                renderScheduler.request({ messages: true });
                 showToast('已撤销删除', 'info', 3000);
             };
 
