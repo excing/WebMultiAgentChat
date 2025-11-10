@@ -2554,14 +2554,8 @@
             });
             window.addEventListener('resize', () => { if (mentionState.open) positionMentionMenu(); });
 
-            // 聊天区交互：取消、工具条、头像点击
+            // 聊天区交互：取消消息、工具条、头像点击
             el.chatMessages.addEventListener('click', (e) => {
-                const cancelSelBtn = e.target.closest('[data-action="cancel-selector"]');
-                if (cancelSelBtn) {
-                    const group = groups.find(g => g.id === currentGroupId);
-                    if (group) abortAISelectorForGroup(group);
-                    return;
-                }
                 const cancelBtn = e.target.closest('[data-action="cancel-msg"]');
                 if (cancelBtn) {
                     const msgId = cancelBtn.getAttribute('data-msg-id');
@@ -3069,7 +3063,7 @@
                             <div class="message-header">
                                 <span class="message-name"><span class="skel skel-name"></span></span>
                                 <span class="message-time">&nbsp;</span>
-                                <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span> <button class="ms-action" data-action="cancel-selector" title="中止" aria-label="中止">⏹</button></span>
+                                <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span></span>
                             </div>
                             <div class="message-bubbles"><div class="message-text"><div class="skel skel-line w-80"></div><div class="skel skel-line w-60"></div></div></div>
                         </div>
@@ -3581,7 +3575,7 @@
                                 <div class="message-header">
                                     <span class="message-name"><span class="skel skel-name"></span></span>
                                     <span class="message-time">&nbsp;</span>
-                                    <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span> <button class="ms-action" data-action="cancel-selector" title="中止" aria-label="中止">⏹</button></span>
+                                    <span class="message-status">选择中<span class="dots"><i></i><i></i><i></i></span></span>
                                 </div>
                                 <div class="message-bubbles"><div class="message-text"><div class="skel skel-line w-80"></div><div class="skel skel-line w-60"></div></div></div>
                             </div>
@@ -4201,6 +4195,13 @@
             const group = groups.find(g => g.id === currentGroupId);
             if (!group) return;
 
+            // 如果在自动回复模式下且输入为空，则中止自动回复
+            if (!content && runtime.autoReplyRunning.has(group.id)) {
+                stopAutoReply(group);
+                updateSendBtnLabel();  // 更新按钮显示
+                return;
+            }
+
             // 发送时强制置底
             shouldAutoScroll = true;
             scrollToBottom(true);
@@ -4242,6 +4243,7 @@
             if (group.autoReply) {
                 // 防止并发/重复触发：标记本群聊正在自动回复
                 runtime.autoReplyRunning.add(group.id);
+                updateSendBtnLabel();  // 更新按钮显示中止图标
                 try {
                 const mode = group.autoReplyMode || 'round_robin';
                 if (mode === 'round_robin') {
@@ -4253,6 +4255,7 @@
                 }
                 } finally {
                     runtime.autoReplyRunning.delete(group.id);
+                    updateSendBtnLabel();  // 恢复按钮为正常状态
                     addSystemMessage(group, `自动回复已结束`, 'info');
                 }
                 return;
@@ -4264,7 +4267,19 @@
         function updateSendBtnLabel() {
             if (!el.sendBtn) return;
             const hasText = (el.userInput?.value || '').trim().length > 0;
-            el.sendBtn.textContent = hasText ? '发送' : '继续';
+            const group = currentGroupId ? groups.find(g => g.id === currentGroupId) : null;
+            const isAutoReplying = group && runtime.autoReplyRunning.has(group.id);
+            
+            if (!hasText && isAutoReplying) {
+                el.sendBtn.textContent = '⏹';  // 中止图标
+                el.sendBtn.title = '中止自动回复';
+            } else if (hasText) {
+                el.sendBtn.textContent = '发送';
+                el.sendBtn.title = '';
+            } else {
+                el.sendBtn.textContent = '继续';
+                el.sendBtn.title = '';
+            }
         }
 
         // --- Mention (@) ---
@@ -4828,6 +4843,27 @@
             saveData();
             renderMessages();
             addSystemMessage(group, '用户中止了 AI 选择流程', 'info');
+        }
+        function stopAutoReply(group) {
+            if (!group) return;
+            // 中止 AI 选择器（如果正在运行）
+            abortAISelectorForGroup(group);
+            // 中止所有正在进行的消息
+            const messages = group.messages || [];
+            messages.forEach(msg => {
+                if (msg && msg.id && msg.status === 'loading') {
+                    const entry = inflight.get(msg.id);
+                    if (entry && entry.ac) {
+                        try { entry.ac.abort(); } catch (_) {}
+                    }
+                    msg.status = 'canceled';
+                }
+            });
+            // 标记自动回复流程已停止
+            runtime.autoReplyRunning.delete(group.id);
+            saveData();
+            renderMessages();
+            addSystemMessage(group, '用户中止了自动回复流程', 'info');
         }
 
         function clearChat() {
