@@ -418,6 +418,10 @@
         .message-name {
             font-weight: 600;
             color: #333;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .message-time {
@@ -448,6 +452,9 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .message-status .ms-action {
             appearance: none;
