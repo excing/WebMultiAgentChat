@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 标点符号修复测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+        .test-case label {
+            display: block;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .input {
+            color: #d63384;
+            font-family: 'Courier New', monospace;
+        }
+        .output {
+            color: #198754;
+            font-family: 'Courier New', monospace;
+        }
+        .arrow {
+            color: #667eea;
+            margin: 0 10px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        #customInput {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        .success {
+            color: #198754;
+        }
+        .fail {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Markdown 标点符号修复函数测试</h1>
+
+        <div id="testResults"></div>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+            <h2>自定义测试</h2>
+            <input type="text" id="customInput" placeholder="输入要测试的 Markdown 文本，例如：**hello,**">
+            <button onclick="testCustom()">测试</button>
+            <div id="customResult" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 修复 Markdown 标记内的标点符号位置
+         * 将闭合标记前的标点符号移到闭合标记后
+         */
+        function fixMarkdownPunctuation(text) {
+            if (!text) return text;
+
+            // 定义标点符号正则（包括中英文常见标点）
+            const punctuationRegex = /[.,;:!?。，；：！？、]/;
+
+            // 处理 ** 和 __（加粗标记，需要先处理以避免与单字符标记冲突）
+            text = text.replace(/(\*\*)([^*]+?)([.,;:!?。，；：！？、]+)(\*\*)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            text = text.replace(/(__)([^_]+?)([.,;:!?。，；：！？、]+)(__)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            // 处理 * 和 _（斜体标记）
+            // 注意：需要确保不匹配到 ** 或 __ 的一部分
+            text = text.replace(/(?<!\*)(\*)(?!\*)([^*]+?)([.,;:!?。，；：！？、]+)(\*)(?!\*)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            text = text.replace(/(?<!_)(_)(?!_)([^_]+?)([.,;:!?。，；：！？、]+)(_)(?!_)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            return text;
+        }
+
+        // 测试用例
+        const testCases = [
+            { input: "**hello,**", expected: "**hello**," },
+            { input: "*world!*", expected: "*world*!" },
+            { input: "__test。__", expected: "__test__。" },
+            { input: "_example?_", expected: "_example_?" },
+            { input: "**多个标点！！**", expected: "**多个标点**！！" },
+            { input: "*mix, with; punctuation!*", expected: "*mix, with; punctuation*!" },
+            { input: "**no punctuation**", expected: "**no punctuation**" },
+            { input: "normal text", expected: "normal text" },
+            { input: "**bold** and *italic,* text", expected: "**bold** and *italic*, text" },
+            { input: "__中文测试，__", expected: "__中文测试__，" },
+            { input: "_问号？_", expected: "_问号_？" },
+            { input: "**混合：中英文！**", expected: "**混合：中英文**！" },
+        ];
+
+        function runTests() {
+            const resultsDiv = document.getElementById('testResults');
+            let passed = 0;
+            let failed = 0;
+
+            const html = testCases.map((test, index) => {
+                const result = fixMarkdownPunctuation(test.input);
+                const success = result === test.expected;
+
+                if (success) passed++;
+                else failed++;
+
+                return `
+                    <div class="test-case">
+                        <label>测试 ${index + 1}: ${success ? '<span class="success">✓ 通过</span>' : '<span class="fail">✗ 失败</span>'}</label>
+                        <div>
+                            <span class="input">${escapeHtml(test.input)}</span>
+                            <span class="arrow">→</span>
+                            <span class="output">${escapeHtml(result)}</span>
+                        </div>
+                        ${!success ? `<div style="color: #dc3545; margin-top: 5px;">期望: <code>${escapeHtml(test.expected)}</code></div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            resultsDiv.innerHTML = `
+                <div style="margin-bottom: 20px; padding: 15px; background: ${failed === 0 ? '#d1e7dd' : '#f8d7da'}; border-radius: 4px;">
+                    <strong>测试结果：</strong>
+                    <span class="success">${passed} 通过</span> /
+                    <span class="fail">${failed} 失败</span> /
+                    总计 ${testCases.length}
+                </div>
+                ${html}
+            `;
+        }
+
+        function testCustom() {
+            const input = document.getElementById('customInput').value;
+            const result = fixMarkdownPunctuation(input);
+            const resultDiv = document.getElementById('customResult');
+
+            resultDiv.innerHTML = `
+                <div class="test-case">
+                    <label>结果：</label>
+                    <div>
+                        <span class="input">${escapeHtml(input)}</span>
+                        <span class="arrow">→</span>
+                        <span class="output">${escapeHtml(result)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 页面加载时运行测试
+        window.onload = runTests;
+    </script>
+</body>
+</html>

@@ -1811,7 +1811,7 @@
         
         async function loadOpenAI() {
             if (!OpenAI) {
-                const module = await import('https://cdn.jsdelivr.net/npm/openai@6.4.0/+esm');
+                const module = await import('https://esm.sh/openai@6.8.1');
                 OpenAI = module.default;
             }
             return OpenAI;
@@ -3275,6 +3275,45 @@
         let currentAudio = null;
 
         // ===== 工具：提取消息 Markdown、下载文件、移动端判断 =====
+
+        /**
+         * 修复 Markdown 标记内的标点符号位置
+         * 将闭合标记前的标点符号移到闭合标记后
+         * 例如：**hello,** -> **hello**,
+         *       *world!* -> *world*!
+         * @param {string} text - 待处理的 Markdown 文本
+         * @returns {string} 处理后的文本
+         */
+        function fixMarkdownPunctuation(text) {
+            if (!text) return text;
+
+            // 定义标点符号正则（包括中英文常见标点）
+            const punctuationRegex = /[.,;:!?。，；：！？、]/;
+
+            // 处理 ** 和 __（加粗标记，需要先处理以避免与单字符标记冲突）
+            // 匹配格式：**内容标点** 或 __内容标点__
+            text = text.replace(/(\*\*)([^*]+?)([.,;:!?。，；：！？、]+)(\*\*)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            text = text.replace(/(__)([^_]+?)([.,;:!?。，；：！？、]+)(__)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            // 处理 * 和 _（斜体标记）
+            // 匹配格式：*内容标点* 或 _内容标点_
+            // 注意：需要确保不匹配到 ** 或 __ 的一部分
+            text = text.replace(/(?<!\*)(\*)(?!\*)([^*]+?)([.,;:!?。，；：！？、]+)(\*)(?!\*)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            text = text.replace(/(?<!_)(_)(?!_)([^_]+?)([.,;:!?。，；：！？、]+)(_)(?!_)/g, (match, open, content, punct, close) => {
+                return open + content + close + punct;
+            });
+
+            return text;
+        }
+
         function getMessageMarkdownFromEl(msgRoot) {
             if (!msgRoot) return '';
             const nodes = Array.from(msgRoot.querySelectorAll('.message-content .message-text'));
@@ -4210,7 +4249,7 @@
                 const userMessage = {
                     id: generateId(),
                     role: 'user',
-                    content: content,
+                    content: fixMarkdownPunctuation(content),
                     timestamp: Date.now()
                 };
     
@@ -4759,7 +4798,7 @@
                             visibleDelta = visibleDelta.trimStart();
                         }
                         content += visibleDelta;
-                        msgRef.content = stripRoleNamePrefix(content);
+                        msgRef.content = fixMarkdownPunctuation(stripRoleNamePrefix(content));
                     }
 
                     inflight.set(msgId, { ...info, inThink: parts.inThinkAfter });
