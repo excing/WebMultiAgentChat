@@ -1996,7 +1996,7 @@
                 st = { loaded, pageSize: PAGE_SIZE, loading: false, done: loaded >= total };
                 runtime.paging.set(group.id, st);
             } else {
-                st.loaded = Math.min(st.loaded, total);
+                st.loaded = total < PAGE_SIZE ? total : Math.min(st.loaded, total);
                 st.done = st.loaded >= total;
             }
             return st;
@@ -4211,13 +4211,6 @@
 
             if (wasCurrent) {
                 currentGroupId = null;
-                el.currentGroupName.textContent = '选择一个群聊开始对话';
-                el.groupAgents.textContent = '';
-                el.userInput.disabled = true;
-                el.sendBtn.disabled = true;
-                el.editGroupBtn.disabled = true;
-                el.clearChatBtn.disabled = true;
-                el.chatMessages.innerHTML = '<div class="empty-state"><p>👈 从左侧选择或创建一个群聊</p></div>';
             }
 
             if (hadLast) {
@@ -4287,17 +4280,26 @@
                 return;
             }
 
-            if (group.isAllAgentsGroup) {
-                return;
-            }
-
             // Hidden override mode: if message @mentions specific roles, trigger them to reply in order
             const mentionedAgents = getMentionedAgentsInContent(content, group);
             if (mentionedAgents.length > 0) {
-                for (const ag of mentionedAgents) {
-                    await getAgentResponse(group, ag);
+                runtime.autoReplyRunning.add(group.id);
+                try {
+                    for (const ag of mentionedAgents) {
+                        // 若用户已中止当前群聊的自动回复流程，则立即停止后续轮次
+                        if (!runtime.autoReplyRunning.has(group.id)) break;
+
+                        await getAgentResponse(group, ag);
+                    }
+                } finally {
+                    runtime.autoReplyRunning.delete(group.id);
+                    updateSendBtnLabel();  // 恢复按钮为正常状态
+                    addSystemMessage(group, `自动回复已结束`, 'info');
                 }
-                addSystemMessage(group, `自动回复已结束`, 'info');
+                return;
+            }
+
+            if (group.isAllAgentsGroup) {
                 return;
             }
 
@@ -4306,14 +4308,14 @@
                 runtime.autoReplyRunning.add(group.id);
                 updateSendBtnLabel();  // 更新按钮显示中止图标
                 try {
-                const mode = group.autoReplyMode || 'round_robin';
-                if (mode === 'round_robin') {
-                    await startGroupChatRoundRobin(group);
-                } else if (mode === 'random') {
-                    await startGroupChatRandom(group);
-                } else {
-                    await startGroupChatAISelector(group);
-                }
+                    const mode = group.autoReplyMode || 'round_robin';
+                    if (mode === 'round_robin') {
+                        await startGroupChatRoundRobin(group);
+                    } else if (mode === 'random') {
+                        await startGroupChatRandom(group);
+                    } else {
+                        await startGroupChatAISelector(group);
+                    }
                 } finally {
                     runtime.autoReplyRunning.delete(group.id);
                     updateSendBtnLabel();  // 恢复按钮为正常状态
@@ -4918,7 +4920,6 @@
             }
             saveData();
             renderMessages();
-            addSystemMessage(group, '用户中止了 AI 选择流程', 'info');
         }
         function stopAutoReply(group) {
             if (!group) return;
@@ -5292,7 +5293,7 @@
 [输出规则] 格式纯净性 (Format Purity): 你的所有回复都必须直接以内容开始。严禁在回复的开头添加任何形式的身份标识、名称或前缀，例如 '[${agent.name}]:'、'${agent.name}:' 或 '[AI]:'.`;
             mapped.unshift({
                 role: 'system',
-                content: `你的名字是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境，参与者包括: ${globalSettings.userName}${otherNames ? ', ' + otherNames : ''}。` + rule
+                content: `${group.description}\n\n参与者包括: ${globalSettings.userName}${otherNames ? ', ' + otherNames : ''}和你。\n\n${agent.prompt}\n\n${rule}`
             });
             return mapped;
         }
