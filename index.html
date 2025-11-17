@@ -4538,13 +4538,18 @@
             const groupAgents = group.agentIds.map(id => agents.find(a => a.id === id)).filter(a => a);
 
             while (rounds < maxRounds && groupAgents.length > 0) {
+                // 若用户已中止当前群聊的自动回复流程，则立即停止后续轮次
+                if (!runtime.autoReplyRunning.has(group.id)) break;
+
                 const agentIndex = rounds % groupAgents.length;
                 const agent = groupAgents[agentIndex];
-                
+
                 await getAgentResponse(group, agent);
                 rounds++;
 
                 if (rounds < maxRounds) {
+                    // 如果在等待间隔中用户中止了自动回复，则不再继续下一轮
+                    if (!runtime.autoReplyRunning.has(group.id)) break;
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
@@ -4558,6 +4563,9 @@
             const totalRounds = Math.max(Math.floor(maxRounds / 3), Math.floor(Math.random() * Math.max(1, maxRounds)) + 1);
             let lastAgentId = null;
             for (let i = 0; i < totalRounds; i++) {
+                // 若用户已中止当前群聊的自动回复流程，则立即停止后续轮次
+                if (!runtime.autoReplyRunning.has(group.id)) break;
+
                 let candidate;
                 // 尽量避免连续同一角色
                 const pool = groupAgents.filter(a => a.id !== lastAgentId);
@@ -4569,6 +4577,8 @@
                 await getAgentResponse(group, candidate);
                 lastAgentId = candidate.id;
                 if (i < totalRounds - 1) {
+                    // 如果在等待间隔中用户中止了自动回复，则不再继续下一轮
+                    if (!runtime.autoReplyRunning.has(group.id)) break;
                     await new Promise(r => setTimeout(r, 1000));
                 }
             }
@@ -4582,6 +4592,9 @@
             runtime.aiSelector.set(group.id, { ac, aborted: false });
             try {
                 for (let step = 0; step < MAX_STEPS; step++) {
+                    // 若用户已中止当前群聊的自动回复流程，则立即停止后续轮次
+                    if (!runtime.autoReplyRunning.has(group.id)) break;
+
                     const entry = runtime.aiSelector.get(group.id);
                     if (!entry || entry.aborted) break;
                     const skelId = pushSelectorSkeleton(group);
@@ -4609,6 +4622,8 @@
                     addSystemMessage(group, `AI 选择由 ${next.name} 回复`, 'info');
                     await getAgentResponse(group, next);
                     if (step < MAX_STEPS - 1) {
+                        // 如果在等待间隔中用户中止了自动回复，则不再继续下一轮
+                        if (!runtime.autoReplyRunning.has(group.id)) break;
                         await new Promise(r => setTimeout(r, 1000));
                     }
                 }
