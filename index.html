@@ -5293,7 +5293,7 @@
 [输出规则] 格式纯净性 (Format Purity): 你的所有回复都必须直接以内容开始。严禁在回复的开头添加任何形式的身份标识、名称或前缀，例如 '[${agent.name}]:'、'${agent.name}:' 或 '[AI]:'.`;
             mapped.unshift({
                 role: 'system',
-                content: `${group.description}\n\n参与者包括: ${globalSettings.userName}${otherNames ? ', ' + otherNames : ''}和你。\n\n${agent.prompt}\n\n${rule}`
+                content: `你的名字是 ${agent.name}${agent.role ? '，' + agent.role : ''}。${agent.prompt}\n\n这是一个群聊环境, 群聊名称: ${group.name}.群聊描述: ${group.desc}\n\n参与者包括: ${globalSettings.userName}${otherNames ? ', ' + otherNames : ''}和你。\n\n${rule}`
             });
             return mapped;
         }
